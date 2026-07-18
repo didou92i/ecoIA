@@ -37,14 +37,11 @@ test("se déplace, s'ancre et reste dans la fenêtre après redimensionnement", 
   await expect(widget).toHaveAttribute("data-side", "left");
 
   await extensionPage.setViewportSize({ width: 480, height: 420 });
+  await expect.poll(async () => (await widget.boundingBox())?.y ?? -1).toBeGreaterThanOrEqual(12);
   await expect
-    .poll(async () =>
-      Number.parseFloat(
-        (await widget.getAttribute("style"))?.match(/top:\s*([\d.]+)/u)?.[1] ?? "-1",
-      ),
-    )
-    .toBeGreaterThanOrEqual(12);
-  const bounds = await widget.boundingBox();
-  expect(bounds).not.toBeNull();
-  expect((bounds?.y ?? 0) + (bounds?.height ?? 0)).toBeLessThanOrEqual(420);
+    .poll(async () => {
+      const bounds = await widget.boundingBox();
+      return (bounds?.y ?? Number.POSITIVE_INFINITY) + (bounds?.height ?? 0);
+    })
+    .toBeLessThanOrEqual(420);
 });
