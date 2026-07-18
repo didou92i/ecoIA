@@ -1,0 +1,486 @@
+{
+  "methodologyVersion": "2026-07-18.1",
+  "sources": [
+    {
+      "id": "how-hungry-v6",
+      "title": "How Hungry is AI? Benchmarking Energy, Water, and Carbon Footprint of LLM Inference",
+      "url": "https://arxiv.org/abs/2505.09598v6",
+      "publicationDate": "2025-11-24",
+      "accessedDate": "2026-07-18",
+      "primary": true,
+      "scope": "Operational inference estimates derived from public API performance, inferred hardware, PUE, WUE and grid carbon intensity.",
+      "limitations": [
+        "The proprietary-model values are modeled estimates, not provider meter readings.",
+        "Batch size, hardware, region, cache and hidden reasoning can materially change results.",
+        "Scope 3 and full lifecycle impacts are excluded from the OpenAI and Anthropic estimates used here."
+      ]
+    },
+    {
+      "id": "google-gemini-median-2025",
+      "title": "How much energy does Google’s AI use? We did the math",
+      "url": "https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference/",
+      "publicationDate": "2025-08-21",
+      "accessedDate": "2026-07-18",
+      "primary": true,
+      "scope": "Median Gemini Apps text-generation prompt measured from May 2025 production data, including serving-system overhead.",
+      "limitations": [
+        "The values describe a median product prompt, not every prompt and not a per-token coefficient.",
+        "The claims were not independently verified by a third party.",
+        "The model mix and user behavior can change after the May 2025 measurement period."
+      ]
+    },
+    {
+      "id": "mistral-lca-2025",
+      "title": "Our contribution to a global environmental standard for AI",
+      "url": "https://mistral.ai/news/our-contribution-to-a-global-environmental-standard-for-ai/",
+      "publicationDate": "2025-07-22",
+      "accessedDate": "2026-07-18",
+      "primary": true,
+      "scope": "Marginal lifecycle impacts of using Le Chat for a 400-token Mistral Large 2 response, excluding the user terminal.",
+      "limitations": [
+        "The disclosed response has 400 output tokens; its input length is not published.",
+        "The result is a first approximation and includes modeled upstream hardware impacts.",
+        "No energy-per-response value is disclosed in this publication."
+      ]
+    }
+  ],
+  "profiles": [
+    {
+      "id": "generic-assistant-v1",
+      "version": 1,
+      "displayName": "Assistant IA générique",
+      "platforms": ["chatgpt", "claude", "gemini", "mistral", "perplexity"],
+      "modelMatchers": [],
+      "limitations": [
+        "Generic proxy used only when no closer sourced profile is available.",
+        "Its intentionally wide range must not be read as a model measurement."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "token-linear",
+          "unit": "Wh",
+          "base": 0.12,
+          "inputPer1k": 0.12,
+          "outputPer1k": 1.8,
+          "lowMultiplier": 0.25,
+          "highMultiplier": 4,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "token-linear",
+          "unit": "ml",
+          "base": 0.54,
+          "inputPer1k": 0.54,
+          "outputPer1k": 8.1,
+          "lowMultiplier": 0.2,
+          "highMultiplier": 5,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "token-linear",
+          "unit": "gCO2e",
+          "base": 0.048,
+          "inputPer1k": 0.048,
+          "outputPer1k": 0.72,
+          "lowMultiplier": 0.2,
+          "highMultiplier": 5,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    },
+    {
+      "id": "openai-gpt-4o-v1",
+      "version": 1,
+      "displayName": "OpenAI GPT-4o",
+      "platforms": ["chatgpt"],
+      "modelMatchers": ["gpt 4o", "4o"],
+      "limitations": [
+        "Non-negative linear fit of three published query shapes; not an OpenAI measurement.",
+        "Operational scope only and unknown production batch size."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "token-linear",
+          "unit": "Wh",
+          "base": 0.120982906,
+          "inputPer1k": 0.130940171,
+          "outputPer1k": 0.963076923,
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "token-linear",
+          "unit": "ml",
+          "base": 0.558681777,
+          "inputPer1k": 0.604663004,
+          "outputPer1k": 4.447351648,
+          "lowMultiplier": 0.4,
+          "highMultiplier": 2.5,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "token-linear",
+          "unit": "gCO2e",
+          "base": 0.042344017,
+          "inputPer1k": 0.04582906,
+          "outputPer1k": 0.337076923,
+          "lowMultiplier": 0.4,
+          "highMultiplier": 2.5,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    },
+    {
+      "id": "openai-gpt-4-1-v1",
+      "version": 1,
+      "displayName": "OpenAI GPT-4.1",
+      "platforms": ["chatgpt"],
+      "modelMatchers": ["gpt 4 1", "4 1"],
+      "limitations": [
+        "Constrained non-negative fit of three modeled query shapes.",
+        "The fitted output coefficient absorbs effects that cannot be separated from the published data."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "token-linear",
+          "unit": "Wh",
+          "base": 0,
+          "inputPer1k": 0.03675,
+          "outputPer1k": 2.987079,
+          "lowMultiplier": 0.4,
+          "highMultiplier": 2.5,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "token-linear",
+          "unit": "ml",
+          "base": 0,
+          "inputPer1k": 0.16970625,
+          "outputPer1k": 13.793904096,
+          "lowMultiplier": 0.3,
+          "highMultiplier": 3,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "token-linear",
+          "unit": "gCO2e",
+          "base": 0,
+          "inputPer1k": 0.0128625,
+          "outputPer1k": 1.04547765,
+          "lowMultiplier": 0.3,
+          "highMultiplier": 3,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    },
+    {
+      "id": "openai-generic-v1",
+      "version": 1,
+      "displayName": "OpenAI — profil générique",
+      "platforms": ["chatgpt"],
+      "modelMatchers": [],
+      "limitations": ["Unknown OpenAI model proxied to GPT-4o with a wider uncertainty range."],
+      "indicators": {
+        "energyWh": {
+          "estimator": "model-proxy",
+          "unit": "Wh",
+          "profileId": "openai-gpt-4o-v1",
+          "indicator": "energyWh",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "model-proxy",
+          "unit": "ml",
+          "profileId": "openai-gpt-4o-v1",
+          "indicator": "waterMl",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "model-proxy",
+          "unit": "gCO2e",
+          "profileId": "openai-gpt-4o-v1",
+          "indicator": "carbonG",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    },
+    {
+      "id": "anthropic-claude-3-7-sonnet-v1",
+      "version": 1,
+      "displayName": "Anthropic Claude 3.7 Sonnet",
+      "platforms": ["claude"],
+      "modelMatchers": ["claude 3 7 sonnet", "3 7 sonnet"],
+      "limitations": [
+        "Linear fit of three published modeled query shapes; not an Anthropic measurement.",
+        "Operational scope only and inferred AWS infrastructure parameters."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "token-linear",
+          "unit": "Wh",
+          "base": 0.118042735,
+          "inputPer1k": 0.146649573,
+          "outputPer1k": 2.724307692,
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "token-linear",
+          "unit": "ml",
+          "base": 0.621836703,
+          "inputPer1k": 0.772534512,
+          "outputPer1k": 14.351366154,
+          "lowMultiplier": 0.4,
+          "highMultiplier": 2.5,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "token-linear",
+          "unit": "gCO2e",
+          "base": 0.033878265,
+          "inputPer1k": 0.042088427,
+          "outputPer1k": 0.781876308,
+          "lowMultiplier": 0.4,
+          "highMultiplier": 2.5,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    },
+    {
+      "id": "anthropic-generic-v1",
+      "version": 1,
+      "displayName": "Claude — profil générique",
+      "platforms": ["claude"],
+      "modelMatchers": [],
+      "limitations": ["Unknown Claude model proxied to Claude 3.7 Sonnet with wider uncertainty."],
+      "indicators": {
+        "energyWh": {
+          "estimator": "model-proxy",
+          "unit": "Wh",
+          "profileId": "anthropic-claude-3-7-sonnet-v1",
+          "indicator": "energyWh",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "model-proxy",
+          "unit": "ml",
+          "profileId": "anthropic-claude-3-7-sonnet-v1",
+          "indicator": "waterMl",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "model-proxy",
+          "unit": "gCO2e",
+          "profileId": "anthropic-claude-3-7-sonnet-v1",
+          "indicator": "carbonG",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    },
+    {
+      "id": "google-gemini-apps-median-v1",
+      "version": 1,
+      "displayName": "Gemini Apps — prompt médian mai 2025",
+      "platforms": ["gemini"],
+      "modelMatchers": ["gemini"],
+      "limitations": [
+        "Per-prompt production median; not scaled linearly by visible tokens.",
+        "May 2025 Gemini Apps model mix and behavior may differ from the current response."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "prompt-median",
+          "unit": "Wh",
+          "perPrompt": 0.24,
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "A",
+          "sourceId": "google-gemini-median-2025"
+        },
+        "waterMl": {
+          "estimator": "prompt-median",
+          "unit": "ml",
+          "perPrompt": 0.26,
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "A",
+          "sourceId": "google-gemini-median-2025"
+        },
+        "carbonG": {
+          "estimator": "prompt-median",
+          "unit": "gCO2e",
+          "perPrompt": 0.03,
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "A",
+          "sourceId": "google-gemini-median-2025"
+        }
+      }
+    },
+    {
+      "id": "mistral-large-2-disclosure-v1",
+      "version": 1,
+      "displayName": "Mistral Large 2 / Le Chat",
+      "platforms": ["mistral"],
+      "modelMatchers": ["mistral large 2", "large 2"],
+      "limitations": [
+        "Water and carbon are the disclosed impact of one 400-output-token response and are not linearly scaled.",
+        "Energy is a separate grade-D generic operational proxy because Mistral did not disclose it."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "model-proxy",
+          "unit": "Wh",
+          "profileId": "generic-assistant-v1",
+          "indicator": "energyWh",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "prompt-median",
+          "unit": "ml",
+          "perPrompt": 45,
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "A",
+          "sourceId": "mistral-lca-2025"
+        },
+        "carbonG": {
+          "estimator": "prompt-median",
+          "unit": "gCO2e",
+          "perPrompt": 1.14,
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "A",
+          "sourceId": "mistral-lca-2025"
+        }
+      }
+    },
+    {
+      "id": "mistral-generic-v1",
+      "version": 1,
+      "displayName": "Mistral — profil générique",
+      "platforms": ["mistral"],
+      "modelMatchers": [],
+      "limitations": [
+        "Unknown Mistral model proxied from generic energy and the Large 2 disclosure with wide grade-D ranges."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "model-proxy",
+          "unit": "Wh",
+          "profileId": "generic-assistant-v1",
+          "indicator": "energyWh",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "model-proxy",
+          "unit": "ml",
+          "profileId": "mistral-large-2-disclosure-v1",
+          "indicator": "waterMl",
+          "lowMultiplier": 0.25,
+          "highMultiplier": 4,
+          "confidence": "D",
+          "sourceId": "mistral-lca-2025"
+        },
+        "carbonG": {
+          "estimator": "model-proxy",
+          "unit": "gCO2e",
+          "profileId": "mistral-large-2-disclosure-v1",
+          "indicator": "carbonG",
+          "lowMultiplier": 0.25,
+          "highMultiplier": 4,
+          "confidence": "D",
+          "sourceId": "mistral-lca-2025"
+        }
+      }
+    },
+    {
+      "id": "perplexity-generic-v1",
+      "version": 1,
+      "displayName": "Perplexity — modèle non divulgué",
+      "platforms": ["perplexity"],
+      "modelMatchers": [],
+      "limitations": [
+        "Perplexity can route to different underlying models and add retrieval/tool work not visible to ecoIA.",
+        "The generic range excludes unobservable search and tool infrastructure."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "model-proxy",
+          "unit": "Wh",
+          "profileId": "generic-assistant-v1",
+          "indicator": "energyWh",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "model-proxy",
+          "unit": "ml",
+          "profileId": "generic-assistant-v1",
+          "indicator": "waterMl",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "model-proxy",
+          "unit": "gCO2e",
+          "profileId": "generic-assistant-v1",
+          "indicator": "carbonG",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    }
+  ],
+  "platformFallbacks": {
+    "chatgpt": "openai-generic-v1",
+    "claude": "anthropic-generic-v1",
+    "gemini": "google-gemini-apps-median-v1",
+    "mistral": "mistral-generic-v1",
+    "perplexity": "perplexity-generic-v1"
+  }
+}
