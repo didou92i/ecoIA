@@ -1,7 +1,8 @@
 # ecoIA — Spécification de conception de l’extension navigateur
 
-Date : 18 juillet 2026  
-Statut : conception validée, prête pour planification  
+Date : 18 juillet 2026
+
+Statut : conception validée, prête pour planification
 Licence prévue : MIT
 
 ## 1. Résumé
@@ -49,17 +50,20 @@ La V1 ne cherche pas à :
 
 #### Fork complet d’AI Wattch
 
-Avantage : détecteurs et stockage existants.  
+Avantage : détecteurs et stockage existants.
+
 Inconvénients : React, D3, Tailwind, polices, dépendance à une API distante, géolocalisation IP, trois plateformes seulement et dette de typage. L’audit local du 18 juillet 2026 a trouvé environ 12 263 lignes dans `src`, un paquet Chrome de 615 390 octets non compressé, 25 tests unitaires réussis, quatre erreurs TypeScript et onze alertes dans la chaîne de développement. Aucun avis `npm audit --omit=dev` n’affectait les dépendances de production lors de cette vérification.
 
 #### Nouvelle extension native
 
-Avantages : confidentialité et poids maîtrisés, architecture exactement adaptée.  
+Avantages : confidentialité et poids maîtrisés, architecture exactement adaptée.
+
 Inconvénient : les détecteurs de plateformes doivent être construits et maintenus.
 
 #### Application React avec animations Framer Motion
 
-Avantage : développement d’interface familier.  
+Avantage : développement d’interface familier.
+
 Inconvénients : dépendances et poids inutiles pour un petit widget injecté.
 
 ### 4.2 Décision
