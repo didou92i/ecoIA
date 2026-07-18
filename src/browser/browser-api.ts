@@ -90,7 +90,7 @@ function createStorageArea(
   return {
     get(keys = null) {
       if (usesPromiseApi) {
-        const result = callRaw(rawArea.get, [keys]);
+        const result = callRaw(rawArea.get.bind(rawArea), [keys]);
         const promise = asPromise<Record<string, unknown>>(result);
         if (promise) return promise;
       }
@@ -98,7 +98,7 @@ function createStorageArea(
     },
     set(values) {
       if (usesPromiseApi) {
-        const result = callRaw(rawArea.set, [values]);
+        const result = callRaw(rawArea.set.bind(rawArea), [values]);
         const promise = asPromise<void>(result);
         if (promise) return promise;
       }
@@ -106,7 +106,7 @@ function createStorageArea(
     },
     remove(keys) {
       if (usesPromiseApi) {
-        const result = callRaw(rawArea.remove, [keys]);
+        const result = callRaw(rawArea.remove.bind(rawArea), [keys]);
         const promise = asPromise<void>(result);
         if (promise) return promise;
       }
@@ -126,7 +126,7 @@ export function createBrowserApi(root: ApiRoot = globalThis as unknown as ApiRoo
     runtime: {
       sendMessage(message) {
         if (usesPromiseApi) {
-          const result = callRaw(api.runtime.sendMessage, [message]);
+          const result = callRaw(api.runtime.sendMessage.bind(api.runtime), [message]);
           const promise = asPromise<unknown>(result);
           if (promise) return promise;
         }

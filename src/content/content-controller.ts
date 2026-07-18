@@ -26,6 +26,7 @@ export interface ContentWidget extends HTMLElement {
   }): void;
   update(viewModel: WidgetViewModel): void;
   toggleCollapsed(): void;
+  disconnectEcoIaWidget?(): void;
 }
 
 interface ContentControllerOptions {
@@ -176,6 +177,7 @@ export class ContentController {
     this.unsubscribeRuntime?.();
     this.unsubscribeRuntime = null;
     this.observedRoot = null;
+    this.widget?.disconnectEcoIaWidget?.();
     this.widget?.remove();
     this.widget = null;
   }

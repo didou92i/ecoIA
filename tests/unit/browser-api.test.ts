@@ -26,6 +26,28 @@ describe("browser API adapter", () => {
     expect(set).toHaveBeenCalledWith({ theme: "light" });
   });
 
+  it("preserves the native receiver for promise-based methods", async () => {
+    const runtime = {
+      sendMessage(this: unknown) {
+        if (this !== runtime) throw new TypeError("ILLEGAL_RUNTIME_RECEIVER");
+        return Promise.resolve({ ok: true });
+      },
+      onMessage: { addListener: vi.fn(), removeListener: vi.fn() },
+    };
+    const local = {
+      get(this: unknown) {
+        if (this !== local) throw new TypeError("ILLEGAL_STORAGE_RECEIVER");
+        return Promise.resolve({ ok: true });
+      },
+      set: vi.fn(async () => undefined),
+      remove: vi.fn(async () => undefined),
+    };
+    const api = createBrowserApi({ browser: { runtime, storage: { local } } });
+
+    await expect(api.runtime.sendMessage({ version: 1 })).resolves.toEqual({ ok: true });
+    await expect(api.storage.local.get()).resolves.toEqual({ ok: true });
+  });
+
   it("promisifies callback-based Chrome APIs", async () => {
     const root = {
       chrome: {

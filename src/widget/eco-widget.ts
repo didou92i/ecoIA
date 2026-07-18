@@ -56,7 +56,7 @@ function summaryLabel(aggregate: NumericAggregate | null): string {
   return `${aggregate.interactionCount} ${interactionLabel} · ${formatWater(aggregate.impacts.waterMl)}`;
 }
 
-export class EcoIaWidgetElement extends HTMLElement {
+class EcoIaWidgetRuntime {
   private readonly elements: WidgetElements;
   private controller: WidgetController | null = null;
   private configuration: WidgetConfiguration = {};
@@ -65,17 +65,16 @@ export class EcoIaWidgetElement extends HTMLElement {
   private pendingRender: number | null = null;
   private pendingViewModel: WidgetViewModel | null = null;
 
-  constructor() {
-    super();
-    const shadowRoot = this.attachShadow({ mode: "open" });
+  constructor(private readonly host: HTMLElement) {
+    const shadowRoot = host.attachShadow({ mode: "open" });
     this.elements = createWidgetTemplate(shadowRoot, widgetStyles);
   }
 
-  connectedCallback(): void {
-    this.controller ??= new WidgetController(this, this.elements, this.configuration);
+  connect(): void {
+    this.controller ??= new WidgetController(this.host, this.elements, this.configuration);
   }
 
-  disconnectedCallback(): void {
+  disconnect(): void {
     this.controller?.disconnect();
     this.controller = null;
     if (this.pendingRender !== null) window.clearTimeout(this.pendingRender);
@@ -171,8 +170,61 @@ export class EcoIaWidgetElement extends HTMLElement {
   }
 }
 
-export function registerEcoWidget(): void {
-  if (!customElements.get("eco-ia-widget")) {
-    customElements.define("eco-ia-widget", EcoIaWidgetElement);
+export interface EcoIaWidgetHost extends HTMLElement {
+  configure(configuration: WidgetConfiguration): void;
+  update(viewModel: WidgetViewModel): void;
+  toggleCollapsed(): void;
+  disconnectEcoIaWidget(): void;
+}
+
+export class EcoIaWidgetElement extends HTMLElement implements EcoIaWidgetHost {
+  private readonly runtime = new EcoIaWidgetRuntime(this);
+
+  connectedCallback(): void {
+    this.runtime.connect();
   }
+
+  disconnectedCallback(): void {
+    this.runtime.disconnect();
+  }
+
+  configure(configuration: WidgetConfiguration): void {
+    this.runtime.configure(configuration);
+  }
+
+  update(viewModel: WidgetViewModel): void {
+    this.runtime.update(viewModel);
+  }
+
+  toggleCollapsed(): void {
+    this.runtime.toggleCollapsed();
+  }
+
+  disconnectEcoIaWidget(): void {
+    this.runtime.disconnect();
+  }
+}
+
+export function registerEcoWidget(): boolean {
+  const registry = globalThis.customElements as CustomElementRegistry | null;
+  if (!registry) return false;
+  if (!registry.get("eco-ia-widget")) {
+    registry.define("eco-ia-widget", EcoIaWidgetElement);
+  }
+  return true;
+}
+
+export function createEcoWidget(documentRoot: Document = document): EcoIaWidgetHost {
+  if (registerEcoWidget()) {
+    return documentRoot.createElement("eco-ia-widget") as EcoIaWidgetElement;
+  }
+
+  const host = documentRoot.createElement("eco-ia-widget") as EcoIaWidgetHost;
+  const runtime = new EcoIaWidgetRuntime(host);
+  host.configure = (configuration) => runtime.configure(configuration);
+  host.update = (viewModel) => runtime.update(viewModel);
+  host.toggleCollapsed = () => runtime.toggleCollapsed();
+  host.disconnectEcoIaWidget = () => runtime.disconnect();
+  runtime.connect();
+  return host;
 }

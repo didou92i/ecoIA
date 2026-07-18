@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Fixture locale ecoIA</title>
+    <style>
+      body { margin: 0; min-height: 100vh; font: 16px/1.5 system-ui, sans-serif; background: #f1f5f4; color: #13211f; }
+      main { width: min(720px, calc(100% - 48px)); margin: 40px auto; }
+      article { margin: 12px 0; padding: 16px; border-radius: 12px; background: white; }
+      [data-message-author-role="user"] { background: #dff4ef; }
+    </style>
+  </head>
+  <body>
+    <aside id="outside-conversation">Zone hors conversation</aside>
+    <main data-conversation-id="synthetic-conversation-a">
+      <button type="button" data-testid="model-switcher-dropdown-button">GPT-4o</button>
+      <article data-message-author-role="user">
+        <p>Question synthétique privée pour le test local.</p>
+      </article>
+      <article data-message-author-role="assistant">
+        <p data-answer>Réponse synthétique locale sans donnée personnelle.</p>
+      </article>
+    </main>
+  </body>
+</html>

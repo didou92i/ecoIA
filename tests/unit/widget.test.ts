@@ -1,10 +1,14 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ImpactEstimate } from "../../src/impact/profile-types";
 import { createRange } from "../../src/shared/range";
-import { registerEcoWidget, type WidgetViewModel } from "../../src/widget/eco-widget";
+import {
+  createEcoWidget,
+  registerEcoWidget,
+  type WidgetViewModel,
+} from "../../src/widget/eco-widget";
 
 const impactIndicator = {
   range: createRange(1, 2, 3),
@@ -52,6 +56,17 @@ function createWidget() {
 describe("ecoIA widget", () => {
   beforeEach(() => {
     document.body.replaceChildren();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("works in a Chrome isolated world without a custom-elements registry", () => {
+    vi.stubGlobal("customElements", null);
+    const widget = createEcoWidget(document);
+    document.body.append(widget);
+    expect(widget.tagName).toBe("ECO-IA-WIDGET");
+    expect(widget.shadowRoot?.querySelector("[role='region']")).not.toBeNull();
+    expect(() => widget.update(viewModel)).not.toThrow();
+    widget.disconnectEcoIaWidget();
   });
 
   it("isolates a compact native interface in Shadow DOM", () => {
