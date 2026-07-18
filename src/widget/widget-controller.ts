@@ -55,6 +55,11 @@ export class WidgetController {
     for (const cleanup of this.cleanupCallbacks.splice(0)) cleanup();
   }
 
+  toggleCollapsed(): void {
+    this.preferences.collapsed = !this.preferences.collapsed;
+    this.applyPreferences();
+  }
+
   private listen(
     target: EventTarget,
     type: string,

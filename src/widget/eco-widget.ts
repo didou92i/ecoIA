@@ -95,6 +95,10 @@ export class EcoIaWidgetElement extends HTMLElement {
     this.controller?.configure(configuration);
   }
 
+  toggleCollapsed(): void {
+    this.controller?.toggleCollapsed();
+  }
+
   update(viewModel: WidgetViewModel): void {
     const now = performance.now();
     const remainingDelay = 500 - (now - this.lastRenderAt);

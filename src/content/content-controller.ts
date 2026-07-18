@@ -25,6 +25,7 @@ export interface ContentWidget extends HTMLElement {
     onPreferencesChange?: (preferences: WidgetPreferences) => void;
   }): void;
   update(viewModel: WidgetViewModel): void;
+  toggleCollapsed(): void;
 }
 
 interface ContentControllerOptions {
@@ -107,6 +108,7 @@ export class ContentController {
   private readonly now: () => number;
   private widget: ContentWidget | null = null;
   private unsubscribeAdapter: (() => void) | null = null;
+  private unsubscribeRuntime: (() => void) | null = null;
   private observedRoot: HTMLElement | null = null;
   private tabSessionId: string;
   private conversationMarker: string | null = null;
@@ -139,6 +141,19 @@ export class ContentController {
       },
     });
     this.document.documentElement.append(this.widget);
+    this.unsubscribeRuntime = this.api.runtime.onMessage((message, _sender, sendResponse) => {
+      if (
+        isRecord(message) &&
+        Object.keys(message).length === 2 &&
+        message.version === 1 &&
+        message.kind === "toggle-widget"
+      ) {
+        this.widget?.toggleCollapsed();
+        sendResponse({ ok: true });
+        return false;
+      }
+      return false;
+    });
     const root = this.adapter.findConversationRoot(this.document);
     if (!root) {
       this.viewModel = { ...this.viewModel, state: "measurement-paused" };
@@ -158,6 +173,8 @@ export class ContentController {
   stop(): void {
     this.unsubscribeAdapter?.();
     this.unsubscribeAdapter = null;
+    this.unsubscribeRuntime?.();
+    this.unsubscribeRuntime = null;
     this.observedRoot = null;
     this.widget?.remove();
     this.widget = null;

@@ -61,6 +61,7 @@ function requireSnapshot(adapter: FakeAdapter): VisibleTurnSnapshot {
 
 function createHarness(adapter = new FakeAdapter()) {
   const messages: unknown[] = [];
+  let runtimeListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
   const api: BrowserApi = {
     runtime: {
       async sendMessage(message) {
@@ -70,7 +71,10 @@ function createHarness(adapter = new FakeAdapter()) {
         }
         return { ok: true, status: "accepted", session: null, day: null };
       },
-      onMessage: () => () => undefined,
+      onMessage: (listener) => {
+        runtimeListener = listener;
+        return () => (runtimeListener = null);
+      },
     },
     storage: { local: new MemoryStorageArea(), session: new MemoryStorageArea() },
   };
@@ -78,6 +82,7 @@ function createHarness(adapter = new FakeAdapter()) {
   const widget = Object.assign(document.createElement("div"), {
     configure: vi.fn(),
     update: (viewModel: WidgetViewModel) => updates.push(structuredClone(viewModel)),
+    toggleCollapsed: vi.fn(),
   }) as ContentWidget;
   let uuidIndex = 0;
   const controller = new ContentController({
@@ -88,7 +93,15 @@ function createHarness(adapter = new FakeAdapter()) {
     randomUUID: () => `uuid-${++uuidIndex}`,
     now: () => 1_721_318_400_000 + uuidIndex,
   });
-  return { adapter, api, controller, messages, updates, widget };
+  return {
+    adapter,
+    api,
+    controller,
+    messages,
+    updates,
+    widget,
+    getRuntimeListener: () => runtimeListener,
+  };
 }
 
 describe("content controller", () => {
@@ -111,6 +124,20 @@ describe("content controller", () => {
       tokens: { source: "estimated" },
     });
     expect(updates.at(-1)?.state).toBe("streaming");
+  });
+
+  it("toggles the widget only for the exact toolbar message", async () => {
+    const { controller, getRuntimeListener, widget } = createHarness();
+    await controller.start();
+    const listener = getRuntimeListener();
+    if (!listener) throw new Error("MISSING_RUNTIME_LISTENER");
+    const sendResponse = vi.fn();
+
+    listener({ version: 1, kind: "toggle-widget" }, {}, sendResponse);
+    listener({ version: 1, kind: "toggle-widget", text: "forbidden" }, {}, sendResponse);
+
+    expect(widget.toggleCollapsed).toHaveBeenCalledOnce();
+    expect(sendResponse).toHaveBeenCalledWith({ ok: true });
   });
 
   it("reuses the event ID and increments only the numeric sequence during streaming", async () => {

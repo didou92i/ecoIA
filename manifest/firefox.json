@@ -1,0 +1,11 @@
+{
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ecoia@open-source.local",
+      "strict_min_version": "121.0"
+    }
+  }
+}

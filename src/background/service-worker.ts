@@ -1,3 +1,4 @@
+import { registerToolbarAction } from "../action/action";
 import { createBrowserApi, type BrowserApi } from "../browser/browser-api";
 import { validateNumericInteractionEvent, validateResetSessionMessage } from "../shared/validation";
 import { AggregateStore } from "../storage/aggregate-store";
@@ -48,4 +49,5 @@ export function registerServiceWorker(
 const extensionGlobal = globalThis as unknown as Record<string, unknown>;
 if ("browser" in extensionGlobal || "chrome" in extensionGlobal) {
   registerServiceWorker(createBrowserApi());
+  registerToolbarAction();
 }

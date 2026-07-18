@@ -1,4 +1,4 @@
-import { readdir, readFile, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { build } from "esbuild";
 
@@ -21,12 +21,44 @@ for (const target of targets) {
 
 const entryPoints = [
   ["src/background/service-worker.ts", "background"],
+  ["src/content/core-entry.ts", "content/core"],
   ["src/content/entries/chatgpt.ts", "content/chatgpt"],
   ["src/content/entries/claude.ts", "content/claude"],
   ["src/content/entries/gemini.ts", "content/gemini"],
   ["src/content/entries/mistral.ts", "content/mistral"],
   ["src/content/entries/perplexity.ts", "content/perplexity"],
 ];
+
+async function readJson(filePath) {
+  return JSON.parse(await readFile(filePath, "utf8"));
+}
+
+async function writeManifest(target, outputDirectory) {
+  const baseManifest = await readJson(path.join(projectRoot, "manifest", "manifest.base.json"));
+  const browserTarget = target === "firefox" ? "firefox" : "chromium";
+  const targetManifest = await readJson(
+    path.join(projectRoot, "manifest", `${browserTarget}.json`),
+  );
+  const manifest = { ...baseManifest, ...targetManifest };
+
+  if (target === "chromium-e2e") {
+    manifest.host_permissions = [...manifest.host_permissions, "http://127.0.0.1/*"];
+    manifest.content_scripts = [
+      ...manifest.content_scripts,
+      {
+        matches: ["http://127.0.0.1/*"],
+        js: ["content/core.js", "content/chatgpt.js"],
+        run_at: "document_idle",
+      },
+    ];
+  }
+
+  await mkdir(outputDirectory, { recursive: true });
+  await writeFile(
+    path.join(outputDirectory, "manifest.json"),
+    `${JSON.stringify(manifest, null, 2)}\n`,
+  );
+}
 
 async function pathExists(filePath) {
   try {
@@ -59,6 +91,7 @@ for (const target of targets) {
   const outputDirectory = path.join(distributionRoot, target);
   await rm(outputDirectory, { recursive: true, force: true });
   await generateIcons(path.join(outputDirectory, "icons"));
+  await writeManifest(target, outputDirectory);
 
   const availableEntries = {};
   for (const [sourcePath, outputName] of entryPoints) {
@@ -72,7 +105,7 @@ for (const target of targets) {
     await build({
       bundle: true,
       charset: "utf8",
-      entryNames: "[name]",
+      entryNames: "[dir]/[name]",
       entryPoints: availableEntries,
       format: "iife",
       legalComments: "none",
