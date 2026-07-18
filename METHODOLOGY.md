@@ -1,6 +1,6 @@
 # Méthodologie environnementale ecoIA
 
-Version : `2026-07-18.1`  
+Version : `2026-07-18.1`
 Dernière vérification des sources : 18 juillet 2026
 
 ## Ce que mesure ecoIA

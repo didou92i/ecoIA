@@ -1,6 +1,6 @@
 # Calibration de l’estimation des tokens visibles
 
-Date de calibration : 18 juillet 2026  
+Date de calibration : 18 juillet 2026
 Version des coefficients : `2026-07-18.1`
 
 ecoIA n’essaie pas de reproduire un compteur de facturation. Le navigateur expose le texte visible,
