@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Format
+        run: npm run format:check
+      - name: Lint
+        run: npm run lint
+      - name: Type-check
+        run: npm run typecheck
+      - name: Unit and adapter tests
+        run: npm test
+      - name: Chromium extension journeys
+        run: npm run e2e
+      - name: Production dependency audit
+        run: npm run audit
+      - name: High-confidence secret scan
+        run: npm run secrets
+      - name: Dual browser packages
+        run: npm run build
+      - name: Archive size budget
+        run: npm run size
+      - name: Release checksums
+        run: npm run checksums

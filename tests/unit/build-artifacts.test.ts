@@ -31,6 +31,15 @@ describe("built browser artifacts", () => {
     for (const relativePath of referencedFiles) {
       await expect(access(path.join(targetRoot, relativePath))).resolves.toBeUndefined();
     }
+    for (const legalDocument of [
+      "LICENSE",
+      "NOTICE",
+      "PRIVACY.md",
+      "METHODOLOGY.md",
+      "THIRD_PARTY_NOTICES.md",
+    ]) {
+      await expect(access(path.join(targetRoot, legalDocument))).resolves.toBeUndefined();
+    }
   });
 
   it.each([16, 32, 48, 128])("generates a valid %d px PNG icon", async (size) => {

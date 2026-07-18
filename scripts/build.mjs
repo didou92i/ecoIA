@@ -28,6 +28,13 @@ const entryPoints = [
   ["src/content/entries/mistral.ts", "content/mistral"],
   ["src/content/entries/perplexity.ts", "content/perplexity"],
 ];
+const packagedDocumentation = [
+  "LICENSE",
+  "NOTICE",
+  "PRIVACY.md",
+  "METHODOLOGY.md",
+  "THIRD_PARTY_NOTICES.md",
+];
 
 async function readJson(filePath) {
   return JSON.parse(await readFile(filePath, "utf8"));
@@ -58,6 +65,15 @@ async function writeManifest(target, outputDirectory) {
     path.join(outputDirectory, "manifest.json"),
     `${JSON.stringify(manifest, null, 2)}\n`,
   );
+}
+
+async function copyPackagedDocumentation(outputDirectory) {
+  for (const relativePath of packagedDocumentation) {
+    await writeFile(
+      path.join(outputDirectory, relativePath),
+      await readFile(path.join(projectRoot, relativePath)),
+    );
+  }
 }
 
 async function pathExists(filePath) {
@@ -92,6 +108,7 @@ for (const target of targets) {
   await rm(outputDirectory, { recursive: true, force: true });
   await generateIcons(path.join(outputDirectory, "icons"));
   await writeManifest(target, outputDirectory);
+  await copyPackagedDocumentation(outputDirectory);
 
   const availableEntries = {};
   for (const [sourcePath, outputName] of entryPoints) {
