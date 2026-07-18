@@ -1,0 +1,22 @@
+[
+  {
+    "id": "javascript",
+    "text": "function sumVisibleTokens(input, output) {\n  return Math.max(0, input) + Math.max(0, output);\n}",
+    "references": {
+      "openai": 27,
+      "claude": 31,
+      "mistral": 32,
+      "gemini": { "low": 19, "high": 32 }
+    }
+  },
+  {
+    "id": "python",
+    "text": "def clamp(value: float, low: float, high: float) -> float:\n    return max(low, min(value, high))",
+    "references": {
+      "openai": 27,
+      "claude": 30,
+      "mistral": 32,
+      "gemini": { "low": 19, "high": 32 }
+    }
+  }
+]

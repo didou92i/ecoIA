@@ -1,0 +1,22 @@
+[
+  {
+    "id": "mixed",
+    "text": "Bonjour 世界. كيف حالك اليوم؟ L’intelligence artificielle peut aider, mais elle consomme des ressources.",
+    "references": {
+      "openai": 23,
+      "claude": 41,
+      "mistral": 39,
+      "gemini": { "low": 20, "high": 34 }
+    }
+  },
+  {
+    "id": "emoji",
+    "text": "🌱💧⚡ Une réponse concise vaut parfois mieux qu’un long détour.",
+    "references": {
+      "openai": 17,
+      "claude": 24,
+      "mistral": 30,
+      "gemini": { "low": 12, "high": 21 }
+    }
+  }
+]

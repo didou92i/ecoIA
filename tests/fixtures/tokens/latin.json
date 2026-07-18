@@ -1,0 +1,22 @@
+[
+  {
+    "id": "fr_short",
+    "text": "Bonjour ! Peux-tu expliquer en trois phrases pourquoi le ciel paraît bleu ?",
+    "references": {
+      "openai": 15,
+      "claude": 24,
+      "mistral": 24,
+      "gemini": { "low": 15, "high": 25 }
+    }
+  },
+  {
+    "id": "en_paragraph",
+    "text": "A small solar panel converts sunlight into electricity. Its output changes with weather, orientation, temperature, and the time of day.",
+    "references": {
+      "openai": 25,
+      "claude": 25,
+      "mistral": 26,
+      "gemini": { "low": 27, "high": 45 }
+    }
+  }
+]

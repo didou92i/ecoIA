@@ -1,0 +1,51 @@
+{
+  "version": "2026-07-18.1",
+  "maximumUtf8Bytes": 2097152,
+  "families": {
+    "openai": {
+      "proseCharactersPerToken": 4.6,
+      "codeCharactersPerToken": 3.8,
+      "nonLatinTokenWeight": 0.25,
+      "emojiTokenWeight": 0.7,
+      "codeMarkerTokenWeight": 0.05,
+      "lowMultiplier": 0.65,
+      "highMultiplier": 1.5
+    },
+    "claude": {
+      "proseCharactersPerToken": 4.2,
+      "codeCharactersPerToken": 3.4,
+      "nonLatinTokenWeight": 0.75,
+      "emojiTokenWeight": 1,
+      "codeMarkerTokenWeight": 0.08,
+      "lowMultiplier": 0.6,
+      "highMultiplier": 1.55
+    },
+    "gemini": {
+      "proseCharactersPerToken": 4,
+      "codeCharactersPerToken": 3.6,
+      "nonLatinTokenWeight": 0.25,
+      "emojiTokenWeight": 0.5,
+      "codeMarkerTokenWeight": 0.05,
+      "lowMultiplier": 0.55,
+      "highMultiplier": 1.75
+    },
+    "mistral": {
+      "proseCharactersPerToken": 4,
+      "codeCharactersPerToken": 3.2,
+      "nonLatinTokenWeight": 0.75,
+      "emojiTokenWeight": 1.5,
+      "codeMarkerTokenWeight": 0.08,
+      "lowMultiplier": 0.6,
+      "highMultiplier": 1.55
+    },
+    "generic": {
+      "proseCharactersPerToken": 4,
+      "codeCharactersPerToken": 3.4,
+      "nonLatinTokenWeight": 0.5,
+      "emojiTokenWeight": 1,
+      "codeMarkerTokenWeight": 0.08,
+      "lowMultiplier": 0.5,
+      "highMultiplier": 1.75
+    }
+  }
+}
