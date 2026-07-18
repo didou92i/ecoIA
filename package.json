@@ -1,0 +1,33 @@
+{
+  "name": "ecoia-browser-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "npm@10.9.3",
+  "scripts": {
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "lint": "biome lint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "build": "node scripts/build.mjs",
+    "build:e2e": "node scripts/build.mjs --target=chromium-e2e",
+    "size": "node scripts/check-size.mjs",
+    "e2e": "npm run build:e2e && playwright test",
+    "audit": "npm audit --omit=dev",
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run size"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.4",
+    "@playwright/test": "1.61.1",
+    "@types/chrome": "0.2.2",
+    "esbuild": "0.28.1",
+    "jsdom": "29.1.1",
+    "typescript": "7.0.2",
+    "vitest": "4.1.10"
+  }
+}
