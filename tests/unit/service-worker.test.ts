@@ -73,8 +73,26 @@ describe("service worker message boundary", () => {
       },
       generatedAt: 1_721_318_400_000,
     });
-    expect(response).toEqual({ ok: true, status: "accepted" });
+    expect(response).toMatchObject({
+      ok: true,
+      status: "accepted",
+      session: { interactionCount: 1 },
+      day: { interactionCount: 1, localDate: "2026-07-18" },
+    });
     cleanup();
+  });
+
+  it("resets only a validated ephemeral session", async () => {
+    const { api, getListener } = createApi();
+    registerServiceWorker(api, {
+      now: () => 1_721_318_400_000,
+      localDate: () => "2026-07-18",
+    });
+    const listener = getListener();
+    if (!listener) throw new Error("MISSING_MESSAGE_LISTENER");
+    await expect(
+      invoke(listener, { version: 1, kind: "reset-session", tabSessionId: "tab-1" }),
+    ).resolves.toEqual({ ok: true, status: "reset" });
   });
 
   it("rejects text-bearing and malformed messages with a stable error", async () => {

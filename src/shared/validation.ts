@@ -1,4 +1,9 @@
-import { interactionPhases, type NumericInteractionEvent, platformIds } from "./contracts";
+import {
+  interactionPhases,
+  type NumericInteractionEvent,
+  platformIds,
+  type ResetSessionMessage,
+} from "./contracts";
 
 const maximumTokenCount = 10_000_000;
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -82,4 +87,17 @@ export function validateNumericInteractionEvent(
   }
 
   return { ok: true, value: value as unknown as NumericInteractionEvent };
+}
+
+export function validateResetSessionMessage(value: unknown): ValidationResult<ResetSessionMessage> {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["version", "kind", "tabSessionId"]) ||
+    value.version !== 1 ||
+    value.kind !== "reset-session" ||
+    !isBoundedIdentifier(value.tabSessionId)
+  ) {
+    return { ok: false, error: "INVALID_MESSAGE" };
+  }
+  return { ok: true, value: value as unknown as ResetSessionMessage };
 }

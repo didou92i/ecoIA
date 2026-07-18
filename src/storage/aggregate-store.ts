@@ -110,7 +110,7 @@ function isPlatformCounts(value: unknown): value is Record<PlatformId, number> {
   );
 }
 
-function isNumericAggregate(value: unknown): value is NumericAggregate {
+export function isNumericAggregate(value: unknown): value is NumericAggregate {
   if (
     !isRecord(value) ||
     value.version !== 1 ||

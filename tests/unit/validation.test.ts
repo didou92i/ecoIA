@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import type { NumericInteractionEvent } from "../../src/shared/contracts";
-import { validateNumericInteractionEvent } from "../../src/shared/validation";
+import {
+  validateNumericInteractionEvent,
+  validateResetSessionMessage,
+} from "../../src/shared/validation";
 
 const validEvent: NumericInteractionEvent = {
   version: 1,
@@ -90,5 +93,27 @@ describe("numeric interaction event validation", () => {
     const secret = "private prompt content";
     const result = validateNumericInteractionEvent({ ...validEvent, prompt: secret });
     expect(JSON.stringify(result)).not.toContain(secret);
+  });
+});
+
+describe("session reset validation", () => {
+  it("accepts only an ephemeral numeric-boundary reset message", () => {
+    expect(
+      validateResetSessionMessage({ version: 1, kind: "reset-session", tabSessionId: "tab-1" }),
+    ).toEqual({
+      ok: true,
+      value: { version: 1, kind: "reset-session", tabSessionId: "tab-1" },
+    });
+  });
+
+  it("rejects conversation identifiers and unknown fields", () => {
+    expect(
+      validateResetSessionMessage({
+        version: 1,
+        kind: "reset-session",
+        tabSessionId: "tab-1",
+        conversationId: "private-id",
+      }),
+    ).toEqual({ ok: false, error: "INVALID_MESSAGE" });
   });
 });

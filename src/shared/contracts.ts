@@ -23,3 +23,9 @@ export interface NumericInteractionEvent {
   tokens: VisibleTokenEstimate;
   generatedAt: number;
 }
+
+export interface ResetSessionMessage {
+  version: 1;
+  kind: "reset-session";
+  tabSessionId: string;
+}

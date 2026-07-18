@@ -1,5 +1,5 @@
 import { createBrowserApi, type BrowserApi } from "../browser/browser-api";
-import { validateNumericInteractionEvent } from "../shared/validation";
+import { validateNumericInteractionEvent, validateResetSessionMessage } from "../shared/validation";
 import { AggregateStore } from "../storage/aggregate-store";
 
 interface ServiceWorkerOptions {
@@ -18,6 +18,14 @@ export function registerServiceWorker(
     ...(options.localDate ? { localDate: options.localDate } : {}),
   });
   return api.runtime.onMessage((message, _sender, sendResponse) => {
+    const resetValidation = validateResetSessionMessage(message);
+    if (resetValidation.ok) {
+      void store
+        .resetSession(resetValidation.value.tabSessionId)
+        .then(() => sendResponse({ ok: true, status: "reset" }))
+        .catch(() => sendResponse({ ok: false, error: "PROCESSING_FAILED" }));
+      return true;
+    }
     const validation = validateNumericInteractionEvent(message);
     if (!validation.ok) {
       sendResponse({ ok: false, error: validation.error });
@@ -25,7 +33,13 @@ export function registerServiceWorker(
     }
     void store
       .processEvent(validation.value)
-      .then((result) => sendResponse({ ok: true, ...result }))
+      .then(async (result) => {
+        const [session, day] = await Promise.all([
+          store.getSessionAggregate(validation.value.tabSessionId),
+          store.getDayAggregate(),
+        ]);
+        sendResponse({ ok: true, ...result, session, day });
+      })
       .catch(() => sendResponse({ ok: false, error: "PROCESSING_FAILED" }));
     return true;
   });
