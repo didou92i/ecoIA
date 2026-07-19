@@ -101,6 +101,37 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       );
     });
 
+    it("reads only visible user and assistant text before the current user anchor", () => {
+      const root = requireRoot(options.adapter);
+      const firstUser = root.querySelector(options.userSelector);
+      const firstAssistant = root.querySelector(options.assistantSelector);
+      if (!firstUser || !firstAssistant) throw new Error("MISSING_TURN_FIXTURE");
+
+      const priorUser = firstUser.cloneNode(false) as Element;
+      priorUser.textContent = "Question antérieure ajoutée.";
+      const priorAssistant = firstAssistant.cloneNode(false) as Element;
+      priorAssistant.textContent = "Réponse antérieure ajoutée.";
+      const currentUser = firstUser.cloneNode(false) as Element;
+      currentUser.textContent = "Prompt actuel à exclure.";
+      const currentAssistant = firstAssistant.cloneNode(false) as Element;
+      currentAssistant.textContent = "Réponse actuelle à exclure.";
+      const excludedControl = document.createElement("button");
+      excludedControl.textContent = "Contrôle exclu.";
+      priorAssistant.append(excludedControl);
+      root.append(priorUser, priorAssistant, currentUser, currentAssistant);
+
+      const context = options.adapter.readVisibleContext(root, currentUser);
+
+      expect(context.coverage).toBe("complete");
+      expect(context.text).toContain(options.expectedPrompt);
+      expect(context.text).toContain(options.expectedResponse);
+      expect(context.text).toContain("Question antérieure ajoutée.");
+      expect(context.text).toContain("Réponse antérieure ajoutée.");
+      expect(context.text).not.toContain("Contrôle exclu.");
+      expect(context.text).not.toContain("Prompt actuel à exclure.");
+      expect(context.text).not.toContain("Réponse actuelle à exclure.");
+    });
+
     it("detects an SPA conversation marker change without exposing it", () => {
       const before = options.adapter.getConversationMarker(document);
       const marker = document.querySelector(`[${options.markerAttribute}]`);

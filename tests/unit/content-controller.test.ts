@@ -45,6 +45,9 @@ class FakeAdapter implements PlatformAdapter {
   readLatestTurn() {
     return this.snapshot;
   }
+  readVisibleContext() {
+    return { text: "", coverage: "complete" as const };
+  }
   getConversationMarker() {
     return this.marker;
   }

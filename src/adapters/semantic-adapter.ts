@@ -1,6 +1,8 @@
 import type { PlatformId } from "../shared/contracts";
+import { tokenCalibration } from "../token/calibration";
 import type { PlatformAdapter, VisibleTurnSnapshot } from "./adapter-contract";
 import { subscribeToScopedMutations } from "./dom-observer";
+import { selectRecentUtf8Context } from "./visible-context";
 
 export interface SemanticAdapterSelectors {
   conversationRoots: string[];
@@ -135,6 +137,13 @@ export function createSemanticAdapter(
         responseText,
         phase: interrupted ? "interrupted" : streaming ? "streaming" : "completed",
       };
+    },
+    readVisibleContext(root, turnElement) {
+      const fragments = queryAll(root, [...selectors.userTurns, ...selectors.assistantTurns])
+        .filter((candidate) => appearsBefore(candidate, turnElement))
+        .map((candidate) => readVisibleText(candidate, selectors.excludedContent))
+        .filter(Boolean);
+      return selectRecentUtf8Context(fragments, tokenCalibration.maximumUtf8Bytes);
     },
     getConversationMarker(document) {
       return markerFromDocument(document, selectors.conversationMarkers);
