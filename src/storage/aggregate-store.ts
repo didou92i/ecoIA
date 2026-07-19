@@ -2,6 +2,7 @@ import type { ExtensionStorageArea } from "../browser/browser-api";
 import { estimateImpact } from "../impact/impact-engine";
 import type { NumericInteractionEvent, PlatformId } from "../shared/contracts";
 import { createRange, type EstimateRange } from "../shared/range";
+import { isCanonicalUuidV4 } from "../shared/uuid";
 import type {
   ActiveSessionState,
   DayAggregate,
@@ -23,9 +24,7 @@ const maximumRecentEvents = 256;
 const maximumActiveSessions = 32;
 const deduplicationLifetimeMs = 30 * 60 * 1_000;
 const activeSessionLifetimeMs = 24 * 60 * 60 * 1_000;
-const recoveryJournalLifetimeMs = 24 * 60 * 60 * 1_000;
 const aggregateQueueKey = "ecoia-aggregate-write";
-const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
 interface AggregateStoreOptions {
   local: ExtensionStorageArea;
@@ -255,8 +254,7 @@ function isStoredEventState(value: unknown): value is StoredEventState {
     (entry) =>
       isRecord(entry) &&
       hasExactKeys(entry, ["eventId", "sequence", "updatedAt", "localDate", "contribution"]) &&
-      typeof entry.eventId === "string" &&
-      identifierPattern.test(entry.eventId) &&
+      isCanonicalUuidV4(entry.eventId) &&
       Number.isSafeInteger(entry.sequence) &&
       (entry.sequence as number) >= 1 &&
       Number.isSafeInteger(entry.updatedAt) &&
@@ -281,8 +279,7 @@ function isActiveSessionState(value: unknown): value is ActiveSessionState {
     if (
       !isRecord(entry) ||
       !hasExactKeys(entry, ["tabSessionId", "lastSeen"]) ||
-      typeof entry.tabSessionId !== "string" ||
-      !identifierPattern.test(entry.tabSessionId) ||
+      !isCanonicalUuidV4(entry.tabSessionId) ||
       sessionIds.has(entry.tabSessionId) ||
       !Number.isSafeInteger(entry.lastSeen) ||
       (entry.lastSeen as number) < 0
@@ -308,10 +305,8 @@ function isDeduplicationState(value: unknown): value is DeduplicationState {
     (entry) =>
       isRecord(entry) &&
       hasExactKeys(entry, ["eventId", "tabSessionId", "sequence", "updatedAt"]) &&
-      typeof entry.eventId === "string" &&
-      identifierPattern.test(entry.eventId) &&
-      typeof entry.tabSessionId === "string" &&
-      identifierPattern.test(entry.tabSessionId) &&
+      isCanonicalUuidV4(entry.eventId) &&
+      isCanonicalUuidV4(entry.tabSessionId) &&
       Number.isSafeInteger(entry.sequence) &&
       (entry.sequence as number) >= 1 &&
       Number.isSafeInteger(entry.updatedAt) &&
@@ -334,8 +329,7 @@ function isRecoveryJournal(value: unknown): value is RecoveryJournal {
     value.version === 1 &&
     Number.isSafeInteger(value.createdAt) &&
     (value.createdAt as number) >= 0 &&
-    typeof value.tabSessionId === "string" &&
-    identifierPattern.test(value.tabSessionId) &&
+    isCanonicalUuidV4(value.tabSessionId) &&
     isSessionAggregate(value.sessionAggregate) &&
     isStoredEventState(value.eventState) &&
     isActiveSessionState(value.activeSessions) &&
@@ -343,10 +337,7 @@ function isRecoveryJournal(value: unknown): value is RecoveryJournal {
     value.sessionIdsToRemove.length <= maximumActiveSessions &&
     new Set(value.sessionIdsToRemove).size === value.sessionIdsToRemove.length &&
     value.sessionIdsToRemove.every(
-      (sessionId) =>
-        typeof sessionId === "string" &&
-        identifierPattern.test(sessionId) &&
-        sessionId !== value.tabSessionId,
+      (sessionId) => isCanonicalUuidV4(sessionId) && sessionId !== value.tabSessionId,
     )
   );
 }
@@ -465,19 +456,15 @@ export class AggregateStore {
   }
 
   async getSessionAggregate(tabSessionId: string): Promise<NumericAggregate | null> {
-    if (!identifierPattern.test(tabSessionId)) throw new Error("INVALID_SESSION_ID");
+    if (!isCanonicalUuidV4(tabSessionId)) throw new Error("INVALID_SESSION_ID");
     const stored = await readKey(this.session, sessionAggregateKey(tabSessionId));
     return isSessionAggregate(stored) ? stored : null;
   }
 
-  private async recoverPendingWrite(timestamp: number): Promise<void> {
+  private async recoverPendingWrite(): Promise<void> {
     const storedJournal = await readKey(this.local, recoveryJournalStorageKey);
     if (storedJournal === undefined) return;
-    if (
-      !isRecoveryJournal(storedJournal) ||
-      storedJournal.createdAt > timestamp ||
-      timestamp - storedJournal.createdAt > recoveryJournalLifetimeMs
-    ) {
+    if (!isRecoveryJournal(storedJournal)) {
       await this.local.remove(recoveryJournalStorageKey);
       return;
     }
@@ -493,13 +480,19 @@ export class AggregateStore {
   }
 
   processEvent(event: NumericInteractionEvent): Promise<ProcessEventResult> {
+    if (!isCanonicalUuidV4(event.eventId)) {
+      return Promise.reject(new Error("INVALID_EVENT_ID"));
+    }
+    if (!isCanonicalUuidV4(event.tabSessionId)) {
+      return Promise.reject(new Error("INVALID_SESSION_ID"));
+    }
     if (!Number.isSafeInteger(event.sequence) || event.sequence < 1) {
       return Promise.reject(new Error("INVALID_EVENT_SEQUENCE"));
     }
     return this.queue.enqueue(aggregateQueueKey, async () => {
       const currentDate = requireCalendarDate(this.localDate());
       const timestamp = requireTimestamp(this.now());
-      await this.recoverPendingWrite(timestamp);
+      await this.recoverPendingWrite();
       const eventsKey = sessionEventsKey(event.tabSessionId);
       const [storedDay, storedSession, storedEvents, storedDeduplication, storedActiveSessions] =
         await Promise.all([
@@ -605,11 +598,10 @@ export class AggregateStore {
   }
 
   resetSession(tabSessionId: string): Promise<void> {
-    if (!identifierPattern.test(tabSessionId))
-      return Promise.reject(new Error("INVALID_SESSION_ID"));
+    if (!isCanonicalUuidV4(tabSessionId)) return Promise.reject(new Error("INVALID_SESSION_ID"));
     return this.queue.enqueue(aggregateQueueKey, async () => {
       const timestamp = requireTimestamp(this.now());
-      await this.recoverPendingWrite(timestamp);
+      await this.recoverPendingWrite();
       const storedActiveSessions = await readKey(this.session, activeSessionsStorageKey);
       const activeSessions: ActiveSessionState = {
         version: 1,
@@ -636,7 +628,12 @@ export class AggregateStore {
         await this.local.set({
           [deduplicationStorageKey]: {
             version: 1,
-            entries: stored.entries.filter((entry) => entry.tabSessionId !== tabSessionId),
+            entries: stored.entries.filter(
+              (entry) =>
+                entry.tabSessionId !== tabSessionId &&
+                entry.updatedAt <= timestamp &&
+                timestamp - entry.updatedAt <= deduplicationLifetimeMs,
+            ),
           },
         });
       }

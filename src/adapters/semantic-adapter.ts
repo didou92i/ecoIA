@@ -2,7 +2,7 @@ import type { PlatformId } from "../shared/contracts";
 import { tokenCalibration } from "../token/calibration";
 import type { PlatformAdapter, VisibleTurnSnapshot } from "./adapter-contract";
 import { subscribeToScopedMutations } from "./dom-observer";
-import { selectRecentUtf8Context } from "./visible-context";
+import { selectRecentNormalizedUtf8Text } from "./visible-context";
 
 export interface SemanticAdapterSelectors {
   conversationRoots: string[];
@@ -82,7 +82,46 @@ function appearsBefore(left: Element, right: Element): boolean {
   return Boolean(left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING);
 }
 
-const conversationMarkerCache = new WeakMap<Document, { path: string; marker: string }>();
+const utf8Encoder = new TextEncoder();
+
+function readRecentVisibleContext(
+  candidates: Element[],
+  excludedSelectors: string[],
+  maximumUtf8Bytes: number,
+): { text: string; coverage: "complete" | "partial" } {
+  const selectedNewestFirst: string[] = [];
+  let remainingUtf8Bytes = Math.max(0, maximumUtf8Bytes);
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const candidate = candidates[index];
+    if (!candidate) continue;
+    const walker = document.createTreeWalker(candidate, NodeFilter.SHOW_TEXT);
+    let latestTextNode: Text | null = null;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (node instanceof Text) latestTextNode = node;
+    }
+    if (!latestTextNode) continue;
+    walker.currentNode = latestTextNode;
+    for (let node: Node | null = latestTextNode; node; node = walker.previousNode()) {
+      if (!(node instanceof Text) || textIsExcluded(node, excludedSelectors)) continue;
+      const separatorBytes = selectedNewestFirst.length > 0 ? 1 : 0;
+      if (remainingUtf8Bytes <= separatorBytes) {
+        return { text: selectedNewestFirst.reverse().join(" "), coverage: "partial" };
+      }
+      const fragment = selectRecentNormalizedUtf8Text(
+        node.data,
+        remainingUtf8Bytes - separatorBytes,
+      );
+      if (fragment.text) {
+        selectedNewestFirst.push(fragment.text);
+        remainingUtf8Bytes -= utf8Encoder.encode(fragment.text).byteLength + separatorBytes;
+      }
+      if (fragment.coverage === "partial") {
+        return { text: selectedNewestFirst.reverse().join(" "), coverage: "partial" };
+      }
+    }
+  }
+  return { text: selectedNewestFirst.reverse().join(" "), coverage: "complete" };
+}
 
 function markerFromDocument(document: Document, selectors: string[]): string | null {
   const explicitMarker = queryAll(document, selectors)
@@ -94,16 +133,10 @@ function markerFromDocument(document: Document, selectors: string[]): string | n
     )
     .find((marker): marker is string => Boolean(marker));
   const path = document.location?.pathname ?? "/";
+  if (path && path !== "/") return path.slice(0, 512);
   if (explicitMarker) {
-    const marker = explicitMarker.slice(0, 512);
-    conversationMarkerCache.set(document, { path, marker });
-    return marker;
+    return explicitMarker.slice(0, 512);
   }
-  if (path && path !== "/") {
-    const cached = conversationMarkerCache.get(document);
-    return cached?.path === path ? cached.marker : path.slice(0, 512);
-  }
-  conversationMarkerCache.delete(document);
   return null;
 }
 
@@ -153,11 +186,15 @@ export function createSemanticAdapter(
       };
     },
     readVisibleContext(root, turnElement) {
-      const fragments = queryAll(root, [...selectors.userTurns, ...selectors.assistantTurns])
-        .filter((candidate) => appearsBefore(candidate, turnElement))
-        .map((candidate) => readVisibleText(candidate, selectors.excludedContent))
-        .filter(Boolean);
-      return selectRecentUtf8Context(fragments, tokenCalibration.maximumUtf8Bytes);
+      const candidates = queryAll(root, [
+        ...selectors.userTurns,
+        ...selectors.assistantTurns,
+      ]).filter((candidate) => appearsBefore(candidate, turnElement));
+      return readRecentVisibleContext(
+        candidates,
+        selectors.excludedContent,
+        tokenCalibration.maximumUtf8Bytes,
+      );
     },
     getConversationMarker(document) {
       return markerFromDocument(document, selectors.conversationMarkers);

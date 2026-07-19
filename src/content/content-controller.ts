@@ -25,7 +25,17 @@ interface TurnState {
   sequence: number;
   pendingSignature: string | null;
   acknowledgedSignature: string | null;
-  baselineSignature: string | null;
+  displayOnly: boolean;
+}
+
+interface BaselinePending {
+  reason: "initial" | "conversation-change";
+  previousTurnElement: Element | null;
+}
+
+interface BaselineTurn {
+  turnElement: Element;
+  terminalObserved: boolean;
 }
 
 export interface ContentWidget extends HTMLElement {
@@ -166,21 +176,6 @@ function numericSignature(event: NumericInteractionEvent): string {
   ].join(":");
 }
 
-function visibleSnapshotSignature(
-  phase: NumericInteractionEvent["phase"],
-  tokens: NumericInteractionEvent["tokens"],
-): string {
-  return [
-    phase,
-    tokens.input.low,
-    tokens.input.central,
-    tokens.input.high,
-    tokens.output.low,
-    tokens.output.central,
-    tokens.output.high,
-  ].join(":");
-}
-
 function localCalendarDate(timestamp: number): string | null {
   if (!Number.isFinite(timestamp)) return null;
   const date = new Date(timestamp);
@@ -210,7 +205,11 @@ export class ContentController {
   private selectionError: string | null = null;
   private viewModel: WidgetViewModel;
   private refreshQueue: Promise<void> = Promise.resolve();
-  private initialSnapshotPending = true;
+  private baselinePending: BaselinePending | null = {
+    reason: "initial",
+    previousTurnElement: null,
+  };
+  private baselineTurn: BaselineTurn | null = null;
   private lastObservedTurnElement: Element | null = null;
 
   constructor(options: ContentControllerOptions) {
@@ -314,12 +313,17 @@ export class ContentController {
     this.unsubscribeAdapter = this.adapter.subscribe(root, () => void this.refresh());
   }
 
-  private async resetConversation(nextMarker: string | null): Promise<void> {
+  private async resetConversation(
+    nextMarker: string | null,
+    previousTurnElement: Element | null,
+  ): Promise<void> {
     const previousSessionId = this.tabSessionId;
     this.manualProfileId = null;
     this.selectionError = null;
     this.contextEstimates = new WeakMap<Element, ContextTokenEstimate>();
     this.turnStates = new WeakMap<Element, TurnState>();
+    this.baselinePending = { reason: "conversation-change", previousTurnElement };
+    this.baselineTurn = null;
     this.conversationMarker = nextMarker;
     this.viewModel = { ...this.viewModel, session: null };
     await this.api.runtime.sendMessage({
@@ -364,7 +368,7 @@ export class ContentController {
     const markerHasChanged = conversationChanged(this.conversationMarker, nextMarker);
     const turnBeforeReset = this.lastObservedTurnElement;
     if (markerHasChanged) {
-      await this.resetConversation(nextMarker);
+      await this.resetConversation(nextMarker, turnBeforeReset);
     } else if (this.conversationMarker === null) {
       this.conversationMarker = nextMarker;
     }
@@ -377,7 +381,7 @@ export class ContentController {
     });
     const snapshot = this.adapter.readLatestTurn(root);
     if (!snapshot) {
-      this.initialSnapshotPending = false;
+      if (this.baselinePending?.reason === "initial") this.baselinePending = null;
       this.viewModel = {
         ...this.viewModel,
         state: "active",
@@ -394,13 +398,43 @@ export class ContentController {
       widget.update(this.viewModel);
       return;
     }
-    const baselineSnapshot =
-      (this.initialSnapshotPending && snapshot.phase !== "streaming") ||
-      (markerHasChanged &&
-        (snapshot.turnElement === turnBeforeReset || snapshot.phase !== "streaming"));
-    this.initialSnapshotPending = false;
+    const baselineSnapshot = this.isBaselineSnapshot(root, snapshot);
     await this.processSnapshot(root, snapshot, detected, widget, baselineSnapshot);
     this.lastObservedTurnElement = snapshot.turnElement;
+  }
+
+  private isBaselineSnapshot(root: HTMLElement, snapshot: VisibleTurnSnapshot): boolean {
+    const pending = this.baselinePending;
+    if (pending) {
+      if (
+        pending.reason === "conversation-change" &&
+        snapshot.turnElement === pending.previousTurnElement
+      ) {
+        return true;
+      }
+      this.baselinePending = null;
+      this.baselineTurn = {
+        turnElement: snapshot.turnElement,
+        terminalObserved: snapshot.phase !== "streaming",
+      };
+      return true;
+    }
+
+    const baseline = this.baselineTurn;
+    if (!baseline) return false;
+    if (snapshot.turnElement === baseline.turnElement) {
+      if (snapshot.phase !== "streaming") baseline.terminalObserved = true;
+      return true;
+    }
+    if (!baseline.terminalObserved || !root.contains(baseline.turnElement)) {
+      this.baselineTurn = {
+        turnElement: snapshot.turnElement,
+        terminalObserved: snapshot.phase !== "streaming",
+      };
+      return true;
+    }
+    this.baselineTurn = null;
+    return false;
   }
 
   private createModelControl(resolution: ModelResolution): WidgetViewModel["modelControl"] {
@@ -465,7 +499,7 @@ export class ContentController {
       });
       const tokens = { input, output, source: "estimated" as const };
       const impact = estimateImpact(resolution.profileId, tokens);
-      const disclosure = buildImpactDisclosure(impact);
+      const disclosure = buildImpactDisclosure(impact, this.adapter.platform);
       const previousState = this.turnStates.get(snapshot.turnElement);
       const eventIdentity = previousState?.eventId ?? createEphemeralSessionId(this.randomUUID);
       const signature = numericSignature({
@@ -479,7 +513,6 @@ export class ContentController {
         tokens,
         generatedAt: this.now(),
       });
-      const snapshotSignature = visibleSnapshotSignature(snapshot.phase, tokens);
       const sequence =
         previousState?.pendingSignature === signature
           ? previousState.sequence
@@ -520,24 +553,23 @@ export class ContentController {
         current: { tokens, impact },
       };
       widget.update(this.viewModel);
-      if (baselineSnapshot) {
+      if (baselineSnapshot || previousState?.displayOnly) {
         this.turnStates.set(snapshot.turnElement, {
           eventId: eventIdentity,
           sequence: previousState?.sequence ?? 0,
           pendingSignature: null,
           acknowledgedSignature: previousState?.acknowledgedSignature ?? null,
-          baselineSignature: snapshotSignature,
+          displayOnly: true,
         });
         return;
       }
-      if (previousState?.baselineSignature === snapshotSignature) return;
       if (previousState?.acknowledgedSignature === signature) return;
       this.turnStates.set(snapshot.turnElement, {
         eventId: event.eventId,
         sequence,
         pendingSignature: signature,
         acknowledgedSignature: previousState?.acknowledgedSignature ?? null,
-        baselineSignature: null,
+        displayOnly: false,
       });
       const response = parseAggregateResponse(await this.api.runtime.sendMessage(event));
       if (response) {
@@ -546,7 +578,7 @@ export class ContentController {
           sequence,
           pendingSignature: null,
           acknowledgedSignature: signature,
-          baselineSignature: null,
+          displayOnly: false,
         });
         this.viewModel = { ...this.viewModel, session: response.session, day: response.day };
         widget.update(this.viewModel);

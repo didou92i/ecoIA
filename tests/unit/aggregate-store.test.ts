@@ -3,6 +3,26 @@ import { describe, expect, it } from "vitest";
 import type { ExtensionStorageArea } from "../../src/browser/browser-api";
 import type { NumericInteractionEvent, PlatformId } from "../../src/shared/contracts";
 import { AggregateStore } from "../../src/storage/aggregate-store";
+import { testUuid } from "../helpers/test-uuid";
+
+const uuidBySeed = new Map<string, string>();
+
+function uuidFor(kind: "event" | "session", seed: string): string {
+  const key = `${kind}:${seed}`;
+  const existing = uuidBySeed.get(key);
+  if (existing) return existing;
+  const uuid = testUuid(uuidBySeed.size + 1);
+  uuidBySeed.set(key, uuid);
+  return uuid;
+}
+
+function eventUuid(seed: string): string {
+  return uuidFor("event", seed);
+}
+
+function sessionUuid(seed: string): string {
+  return uuidFor("session", seed);
+}
 
 class MemoryStorageArea implements ExtensionStorageArea {
   readonly values: Record<string, unknown> = {};
@@ -51,8 +71,8 @@ function event(
 ): NumericInteractionEvent {
   return {
     version: 1,
-    eventId,
-    tabSessionId,
+    eventId: eventUuid(eventId),
+    tabSessionId: sessionUuid(tabSessionId),
     sequence,
     platform,
     modelProfileId: platform === "chatgpt" ? "openai-gpt-4o-v1" : "generic-assistant-v1",
@@ -91,7 +111,7 @@ describe("aggregate store", () => {
     });
 
     const day = await store.getDayAggregate();
-    const session = await store.getSessionAggregate("tab-1");
+    const session = await store.getSessionAggregate(sessionUuid("tab-1"));
     expect(day.interactionCount).toBe(1);
     expect(day.platformCounts.chatgpt).toBe(1);
     expect(day.tokens.output.central).toBe(100);
@@ -177,8 +197,8 @@ describe("aggregate store", () => {
   it("resets a tab session without changing the day", async () => {
     const { store } = createStore();
     await store.processEvent(event("event-1", "tab-1", 1, 100, "chatgpt", "completed"));
-    await store.resetSession("tab-1");
-    expect(await store.getSessionAggregate("tab-1")).toBeNull();
+    await store.resetSession(sessionUuid("tab-1"));
+    expect(await store.getSessionAggregate(sessionUuid("tab-1"))).toBeNull();
     expect((await store.getDayAggregate()).interactionCount).toBe(1);
   });
 
@@ -188,8 +208,8 @@ describe("aggregate store", () => {
 
     expect(Object.keys(local.values).sort()).toEqual(["ecoia.day.v1", "ecoia.dedupe.v1"]);
     expect(Object.keys(session.values).sort()).toEqual([
-      "ecoia.events.tab-1.v1",
-      "ecoia.session.tab-1.v1",
+      `ecoia.events.${sessionUuid("tab-1")}.v1`,
+      `ecoia.session.${sessionUuid("tab-1")}.v1`,
       "ecoia.sessions.v1",
     ]);
     const serialized = JSON.stringify({ local: local.values, session: session.values });
@@ -224,12 +244,14 @@ describe("aggregate store", () => {
       status: "ignored",
       reason: "DUPLICATE_OR_OUT_OF_ORDER",
     });
-    expect(await store2.getSessionAggregate("tab-retry")).toMatchObject({ interactionCount: 1 });
+    expect(await store2.getSessionAggregate(sessionUuid("tab-retry"))).toMatchObject({
+      interactionCount: 1,
+    });
     expect(await store2.getDayAggregate()).toMatchObject({ interactionCount: 1 });
     expect(local.values).not.toHaveProperty("ecoia.journal.v1");
   });
 
-  it("expires an unrecovered journal after 24 hours instead of replaying a stale session", async () => {
+  it("recovers a bounded journal after more than 24 hours without duplicating or redating its day", async () => {
     const local = new MemoryStorageArea();
     const session = new FailOnceStorageArea();
     let timestamp = 1_721_318_400_000;
@@ -240,25 +262,61 @@ describe("aggregate store", () => {
       now: () => timestamp,
       localDate: () => localDate,
     });
-    await expect(
-      store1.processEvent(event("event-expired", "tab-expired", 1, 100, "chatgpt", "completed")),
-    ).rejects.toThrow("SIMULATED_SESSION_WRITE_FAILURE");
+    const numericEvent = event("event-durable", "tab-durable", 1, 100, "chatgpt", "completed");
+    await expect(store1.processEvent(numericEvent)).rejects.toThrow(
+      "SIMULATED_SESSION_WRITE_FAILURE",
+    );
+    const originalDay = structuredClone(local.values["ecoia.day.v1"]);
 
-    timestamp += 24 * 60 * 60 * 1_000 + 1;
-    localDate = "2026-07-19";
+    timestamp += 48 * 60 * 60 * 1_000 + 1;
+    localDate = "2026-07-20";
     const store2 = new AggregateStore({
       local,
       session,
       now: () => timestamp,
       localDate: () => localDate,
     });
-    await store2.processEvent(event("event-current", "tab-current", 1, 50, "chatgpt", "completed"));
+    await expect(store2.processEvent(numericEvent)).resolves.toEqual({
+      status: "ignored",
+      reason: "DUPLICATE_OR_OUT_OF_ORDER",
+    });
 
     expect(local.values).not.toHaveProperty("ecoia.journal.v1");
-    expect(session.setCalls.some((values) => "ecoia.session.tab-expired.v1" in values)).toBe(false);
-    expect(session.values).not.toHaveProperty("ecoia.session.tab-expired.v1");
+    expect(local.values["ecoia.day.v1"]).toEqual(originalDay);
+    expect(await store2.getSessionAggregate(sessionUuid("tab-durable"))).toMatchObject({
+      interactionCount: 1,
+    });
     expect(await store2.getDayAggregate()).toMatchObject({
-      localDate: "2026-07-19",
+      localDate: "2026-07-20",
+      interactionCount: 0,
+    });
+  });
+
+  it("recovers a structurally valid journal even after the local clock moves backwards", async () => {
+    const local = new MemoryStorageArea();
+    const session = new FailOnceStorageArea();
+    const timestamp = 1_721_318_400_000;
+    const numericEvent = event("event-future-journal", "tab-future-journal", 1, 100);
+    const store1 = new AggregateStore({
+      local,
+      session,
+      now: () => timestamp,
+      localDate: () => "2026-07-18",
+    });
+    await expect(store1.processEvent(numericEvent)).rejects.toThrow(
+      "SIMULATED_SESSION_WRITE_FAILURE",
+    );
+    const journal = local.values["ecoia.journal.v1"] as { createdAt: number };
+    journal.createdAt = timestamp + 365 * 24 * 60 * 60 * 1_000;
+
+    const store2 = new AggregateStore({
+      local,
+      session,
+      now: () => timestamp,
+      localDate: () => "2026-07-18",
+    });
+    await expect(store2.processEvent(numericEvent)).resolves.toMatchObject({ status: "ignored" });
+    expect(await store2.getSessionAggregate(sessionUuid("tab-future-journal"))).toMatchObject({
       interactionCount: 1,
     });
   });
@@ -311,7 +369,7 @@ describe("aggregate store", () => {
     const { local, session, store } = createStore();
     local.values["ecoia.journal.v1"] = {
       version: 1,
-      tabSessionId: "tab-1",
+      tabSessionId: sessionUuid("tab-1"),
       sessionAggregate: { prompt: "private prompt" },
       eventState: { url: "https://private.example/conversation" },
     };
@@ -324,13 +382,51 @@ describe("aggregate store", () => {
     );
   });
 
+  it("deletes an exact-shaped journal carrying a private marker as an opaque ID", async () => {
+    const local = new MemoryStorageArea();
+    const session = new FailOnceStorageArea();
+    const numericEvent = event("event-private-id", "tab-private-id", 1, 100);
+    const store1 = new AggregateStore({
+      local,
+      session,
+      now: () => 1_721_318_400_000,
+      localDate: () => "2026-07-18",
+    });
+    await expect(store1.processEvent(numericEvent)).rejects.toThrow(
+      "SIMULATED_SESSION_WRITE_FAILURE",
+    );
+    const journal = local.values["ecoia.journal.v1"] as {
+      tabSessionId: string;
+      eventState: { events: Array<{ eventId: string }> };
+    };
+    journal.tabSessionId = "conversation-private-marker";
+    const firstEvent = journal.eventState.events[0];
+    if (!firstEvent) throw new Error("MISSING_RECOVERY_EVENT_FIXTURE");
+    firstEvent.eventId = "conversation-private-marker";
+
+    const store2 = new AggregateStore({
+      local,
+      session,
+      now: () => 1_721_318_400_000,
+      localDate: () => "2026-07-18",
+    });
+    await store2.processEvent(numericEvent);
+
+    expect(local.values).not.toHaveProperty("ecoia.journal.v1");
+    expect(JSON.stringify({ local: local.values, session: session.values })).not.toContain(
+      "conversation-private-marker",
+    );
+  });
+
   it("bounds deduplication and event metadata to 256 entries", async () => {
     const { local, session, store } = createStore();
     for (let index = 0; index < 270; index += 1) {
       await store.processEvent(event(`event-${index}`, "tab-1", 1, 1, "chatgpt", "completed"));
     }
     const deduplication = local.values["ecoia.dedupe.v1"] as { entries: unknown[] };
-    const events = session.values["ecoia.events.tab-1.v1"] as { events: unknown[] };
+    const events = session.values[`ecoia.events.${sessionUuid("tab-1")}.v1`] as {
+      events: unknown[];
+    };
     expect(deduplication.entries).toHaveLength(256);
     expect(events.events).toHaveLength(256);
   });
@@ -340,6 +436,30 @@ describe("aggregate store", () => {
     await expect(
       store.processEvent({ ...event("event-zero", "tab-zero", 1, 10), sequence: 0 }),
     ).rejects.toThrow("INVALID_EVENT_SEQUENCE");
+    expect(local.values).toEqual({});
+    expect(session.values).toEqual({});
+  });
+
+  it.each([
+    { eventId: "conversation-private-marker" },
+    { tabSessionId: "conversation-private-marker" },
+  ])("rejects non-UUID event identities before persistence", async (change) => {
+    const { local, session, store } = createStore();
+    await expect(
+      store.processEvent({ ...event("event-valid", "tab-valid", 1, 10), ...change }),
+    ).rejects.toThrow(/INVALID_(?:EVENT|SESSION)_ID/u);
+    expect(local.values).toEqual({});
+    expect(session.values).toEqual({});
+  });
+
+  it("rejects a non-UUID session in direct read and reset methods", async () => {
+    const { local, session, store } = createStore();
+    await expect(store.getSessionAggregate("conversation-private-marker")).rejects.toThrow(
+      "INVALID_SESSION_ID",
+    );
+    await expect(store.resetSession("conversation-private-marker")).rejects.toThrow(
+      "INVALID_SESSION_ID",
+    );
     expect(local.values).toEqual({});
     expect(session.values).toEqual({});
   });
@@ -373,8 +493,8 @@ describe("aggregate store", () => {
     const registry = session.values["ecoia.sessions.v1"] as { entries: unknown[] };
     expect(registry.entries).toHaveLength(32);
     expect(Object.keys(session.values)).toHaveLength(65);
-    expect(session.values).not.toHaveProperty("ecoia.session.tab-0.v1");
-    expect(session.values).not.toHaveProperty("ecoia.events.tab-0.v1");
+    expect(session.values).not.toHaveProperty(`ecoia.session.${sessionUuid("tab-0")}.v1`);
+    expect(session.values).not.toHaveProperty(`ecoia.events.${sessionUuid("tab-0")}.v1`);
   });
 
   it("purges expired active sessions on the next processing operation", async () => {
@@ -391,12 +511,30 @@ describe("aggregate store", () => {
     timestamp += 24 * 60 * 60 * 1_000 + 1;
     await store.processEvent(event("event-new", "tab-new", 1, 10));
 
-    expect(session.values).not.toHaveProperty("ecoia.session.tab-old.v1");
-    expect(session.values).not.toHaveProperty("ecoia.events.tab-old.v1");
+    expect(session.values).not.toHaveProperty(`ecoia.session.${sessionUuid("tab-old")}.v1`);
+    expect(session.values).not.toHaveProperty(`ecoia.events.${sessionUuid("tab-old")}.v1`);
     expect(session.values["ecoia.sessions.v1"]).toEqual({
       version: 1,
-      entries: [{ tabSessionId: "tab-new", lastSeen: timestamp }],
+      entries: [{ tabSessionId: sessionUuid("tab-new"), lastSeen: timestamp }],
     });
+  });
+
+  it("physically prunes expired deduplication entries during a session reset", async () => {
+    const local = new MemoryStorageArea();
+    const session = new MemoryStorageArea();
+    let timestamp = 1_721_318_400_000;
+    const store = new AggregateStore({
+      local,
+      session,
+      now: () => timestamp,
+      localDate: () => "2026-07-18",
+    });
+    await store.processEvent(event("event-expired-dedupe", "tab-old-dedupe", 1, 10));
+    timestamp += 31 * 60 * 1_000;
+
+    await store.resetSession(sessionUuid("tab-unrelated-reset"));
+
+    expect(local.values["ecoia.dedupe.v1"]).toEqual({ version: 1, entries: [] });
   });
 
   it("uses bounded in-memory session storage when storage.session is unavailable", async () => {
@@ -408,6 +546,6 @@ describe("aggregate store", () => {
       localDate: () => "2026-07-18",
     });
     await store.processEvent(event("event-1", "tab-1", 1, 100));
-    expect((await store.getSessionAggregate("tab-1"))?.interactionCount).toBe(1);
+    expect((await store.getSessionAggregate(sessionUuid("tab-1")))?.interactionCount).toBe(1);
   });
 });

@@ -113,4 +113,21 @@ describe("impact data-quality disclosure", () => {
 
     expect(buildImpactDisclosure(impact).limitations).toEqual(profile.limitations);
   });
+
+  it.each(["openai-gpt-4o-v1", "perplexity-generic-v1"])(
+    "adds one closed Perplexity retrieval limitation for profile %s",
+    (profileId) => {
+      const platformLimitation =
+        "Perplexity peut ajouter recherche, récupération et outils invisibles ; leurs tokens et impacts ne sont pas inclus.";
+      const disclosure = buildImpactDisclosure(estimateImpact(profileId, tokens), "perplexity");
+
+      expect(disclosure.limitations).toContain(platformLimitation);
+      expect(
+        disclosure.limitations.filter((limitation) =>
+          /Perplexity|retrieval|récupération|search|recherche|tool|outil/iu.test(limitation),
+        ),
+      ).toEqual([platformLimitation]);
+      expect(new Set(disclosure.limitations).size).toBe(disclosure.limitations.length);
+    },
+  );
 });

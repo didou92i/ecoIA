@@ -65,6 +65,16 @@ describe("project configuration", () => {
     );
   });
 
+  it("audits the complete installed toolchain at moderate severity", async () => {
+    const [workflow, checklist] = await Promise.all([
+      readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8"),
+      readFile(new URL("../../docs/release-checklist.md", import.meta.url), "utf8"),
+    ]);
+    expect(packageJson.scripts.audit).toBe("npm audit --audit-level=moderate");
+    expect(workflow).toMatch(/Full dependency tree audit[\s\S]*run: npm run audit/u);
+    expect(checklist).toMatch(/npm run audit[\s\S]*(?:arbre complet|toolchain de développement)/iu);
+  });
+
   it("runs the impact coefficient gate explicitly in CI before build and documents it", async () => {
     const [workflow, checklist] = await Promise.all([
       readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8"),

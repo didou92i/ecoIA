@@ -37,7 +37,7 @@ jobs:
         run: npm run source-freshness
       - name: Chromium extension journeys
         run: npm run e2e
-      - name: Production dependency audit
+      - name: Full dependency tree audit
         run: npm run audit
       - name: High-confidence secret scan
         run: npm run secrets

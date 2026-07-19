@@ -6,6 +6,10 @@ import type {
   ExtensionStorageArea,
 } from "../../src/browser/browser-api";
 import { registerServiceWorker } from "../../src/background/service-worker";
+import { testUuid } from "../helpers/test-uuid";
+
+const eventId = testUuid(1);
+const sessionId = testUuid(10_001);
 
 class MemoryStorageArea implements ExtensionStorageArea {
   readonly values: Record<string, unknown> = {};
@@ -64,8 +68,8 @@ async function invoke(listener: ExtensionMessageListener, message: unknown): Pro
 function numericEvent() {
   return {
     version: 1,
-    eventId: "event-1",
-    tabSessionId: "tab-1",
+    eventId,
+    tabSessionId: sessionId,
     sequence: 1,
     platform: "chatgpt",
     modelProfileId: "openai-gpt-4o-v1",
@@ -128,7 +132,7 @@ describe("service worker message boundary", () => {
     const listener = getListener();
     if (!listener) throw new Error("MISSING_MESSAGE_LISTENER");
     await expect(
-      invoke(listener, { version: 1, kind: "reset-session", tabSessionId: "tab-1" }),
+      invoke(listener, { version: 1, kind: "reset-session", tabSessionId: sessionId }),
     ).resolves.toEqual({ ok: true, status: "reset" });
   });
 
@@ -172,8 +176,8 @@ describe("service worker message boundary", () => {
     if (!listener) throw new Error("MISSING_MESSAGE_LISTENER");
     const response = await invoke(listener, {
       version: 1,
-      eventId: "event-1",
-      tabSessionId: "tab-1",
+      eventId,
+      tabSessionId: sessionId,
       sequence: 1,
       platform: "chatgpt",
       modelProfileId: "openai-gpt-4o-v1",

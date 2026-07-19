@@ -20,8 +20,10 @@ test("replie, restaure et mémorise le thème sombre", async ({ extensionPage })
   await expect(widget).toHaveAttribute("data-theme", "dark");
   await widget.locator("[data-collapse]").click();
   await expect(widget).toHaveAttribute("collapsed", "");
+  await expect(widget.locator("[data-expand]")).toBeFocused();
   await widget.locator("[data-expand]").click();
   await expect(widget).not.toHaveAttribute("collapsed", "");
+  await expect(widget.locator("[data-collapse]")).toBeFocused();
 
   await extensionPage.reload();
   await expect(widget).toBeVisible();

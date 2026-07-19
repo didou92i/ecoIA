@@ -97,6 +97,7 @@ test("réinitialise le choix manuel après navigation SPA et après rechargement
     const conversation = document.querySelector<HTMLElement>("[data-conversation-id]");
     const answer = document.querySelector<HTMLElement>("[data-answer]");
     if (!conversation || !answer) throw new Error("E2E_CONVERSATION_FIXTURE_MISSING");
+    history.pushState(null, "", "/c/synthetic-conversation-b");
     conversation.dataset.conversationId = "synthetic-conversation-b";
     answer.textContent += " Nouvelle conversation synthétique.";
   });

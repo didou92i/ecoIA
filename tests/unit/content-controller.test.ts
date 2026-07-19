@@ -14,6 +14,7 @@ import { estimateImpact } from "../../src/impact/impact-engine";
 import type { DayAggregate } from "../../src/storage/storage-types";
 import { estimateVisibleTokens } from "../../src/token/token-estimator";
 import type { WidgetViewModel } from "../../src/widget/eco-widget";
+import { testUuid } from "../helpers/test-uuid";
 
 class MemoryStorageArea implements ExtensionStorageArea {
   readonly values: Record<string, unknown> = {};
@@ -47,6 +48,10 @@ class FakeAdapter implements PlatformAdapter {
   subscribedListener: (() => void) | null = null;
   cleanup = vi.fn();
   rootAvailable = true;
+
+  constructor() {
+    this.root.append(this.turnElement);
+  }
 
   detectModel() {
     return { label: this.model, observed: this.modelObserved };
@@ -94,7 +99,22 @@ function zeroDayAggregate(localDate: string, interactionCount = 0): DayAggregate
   };
 }
 
-function createHarness(adapter = new FakeAdapter(), numericResponses: unknown[] = []) {
+function activateSnapshotAfterStart(controller: ContentController, adapter: FakeAdapter): void {
+  const start = controller.start.bind(controller);
+  controller.start = async () => {
+    const snapshot = adapter.snapshot;
+    adapter.snapshot = null;
+    await start();
+    adapter.snapshot = snapshot;
+    if (snapshot) await controller.refresh();
+  };
+}
+
+function createHarness(
+  adapter = new FakeAdapter(),
+  numericResponses: unknown[] = [],
+  options: { snapshotAlreadyPresent?: boolean } = {},
+) {
   const messages: unknown[] = [];
   let runtimeListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
   const local = new MemoryStorageArea();
@@ -128,9 +148,10 @@ function createHarness(adapter = new FakeAdapter(), numericResponses: unknown[] 
     adapter,
     api,
     createWidget: () => widget,
-    randomUUID: () => `uuid-${++uuidIndex}`,
+    randomUUID: () => testUuid(++uuidIndex),
     now: () => 1_784_368_800_000 + uuidIndex,
   });
+  if (!options.snapshotAlreadyPresent) activateSnapshotAfterStart(controller, adapter);
   return {
     adapter,
     api,
@@ -208,9 +229,10 @@ function createIntegratedHarness(
     adapter,
     api: contentApi,
     createWidget: () => widget,
-    randomUUID: () => `integrated-uuid-${++uuidIndex}`,
+    randomUUID: () => testUuid(++uuidIndex),
     now: () => 1_784_368_800_000 + uuidIndex,
   });
+  activateSnapshotAfterStart(controller, adapter);
 
   const createRestartedController = () => {
     const restartedUpdates: WidgetViewModel[] = [];
@@ -224,7 +246,7 @@ function createIntegratedHarness(
       adapter,
       api: contentApi,
       createWidget: () => restartedWidget,
-      randomUUID: () => `restarted-uuid-${++uuidIndex}`,
+      randomUUID: () => testUuid(++uuidIndex),
       now: () => 1_784_368_800_000 + uuidIndex,
     });
     return { controller: restartedController, updates: restartedUpdates, widget: restartedWidget };
@@ -518,7 +540,7 @@ describe("content controller", () => {
       harness.updates.map(({ diagnostic }) => diagnostic),
     );
     expect(serializedDiagnostics).not.toMatch(
-      /private|secret|https?:|conversation-a|uuid-|tabSessionId|generatedAt|timestamp/i,
+      /private|secret|https?:|conversation-a|[0-9a-f]{8}-[0-9a-f-]{27,}|tabSessionId|generatedAt|timestamp/i,
     );
     expect(harness.updates.map((update) => update.diagnostic.response)).toEqual(
       expect.arrayContaining(["streaming", "waiting", "interrupted"]),
@@ -629,8 +651,54 @@ describe("content controller", () => {
     harness.cleanupWorker();
   });
 
+  it("keeps a streaming turn display-only through growth and completion after restart", async () => {
+    const adapter = new FakeAdapter();
+    const harness = createIntegratedHarness(adapter);
+    await harness.controller.start();
+    expect(harness.updates.at(-1)?.day).toMatchObject({ interactionCount: 1 });
+    const sentBeforeRestart = numericMessages(harness.messages).length;
+    harness.controller.stop();
+
+    const restarted = harness.createRestartedController();
+    await restarted.controller.start();
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      responseText: "Réponse en cours devenue plus longue après rechargement.",
+      phase: "streaming",
+    };
+    await restarted.controller.refresh();
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      responseText: "Réponse terminée après rechargement.",
+      phase: "completed",
+    };
+    await restarted.controller.refresh();
+
+    expect(numericMessages(harness.messages)).toHaveLength(sentBeforeRestart);
+    expect(restarted.updates.at(-1)).toMatchObject({
+      state: "completed",
+      day: { interactionCount: 1 },
+      session: null,
+    });
+
+    const nextTurn = document.createElement("article");
+    adapter.root.append(nextTurn);
+    adapter.snapshot = {
+      turnElement: nextTurn,
+      promptText: "Question réellement suivante.",
+      responseText: "Nouvelle réponse en cours.",
+      phase: "streaming",
+    };
+    await restarted.controller.refresh();
+    expect(numericMessages(harness.messages)).toHaveLength(sentBeforeRestart + 1);
+    expect(restarted.updates.at(-1)?.day).toMatchObject({ interactionCount: 2 });
+
+    restarted.controller.stop();
+    harness.cleanupWorker();
+  });
+
   it("hydrates only the aggregate for the current local calendar day", async () => {
-    const current = createHarness();
+    const current = createHarness(new FakeAdapter(), [], { snapshotAlreadyPresent: true });
     current.adapter.snapshot = { ...requireSnapshot(current.adapter), phase: "completed" };
     current.local.values["ecoia.day.v1"] = zeroDayAggregate("2026-07-18", 7);
     await current.controller.start();
@@ -641,7 +709,7 @@ describe("content controller", () => {
 
     current.controller.stop();
     document.body.replaceChildren();
-    const stale = createHarness();
+    const stale = createHarness(new FakeAdapter(), [], { snapshotAlreadyPresent: true });
     stale.adapter.snapshot = { ...requireSnapshot(stale.adapter), phase: "completed" };
     stale.local.values["ecoia.day.v1"] = zeroDayAggregate("2026-07-17", 99);
     await stale.controller.start();
@@ -666,23 +734,131 @@ describe("content controller", () => {
     expect(JSON.stringify(messages)).not.toContain("conversation-b");
   });
 
-  it("aggregates a streaming turn found after SPA navigation in the new session", async () => {
+  it("baselines a replacement streaming turn after SPA navigation until a later turn is added", async () => {
     const { adapter, controller, messages } = createHarness();
     await controller.start();
     const firstSession = (messages[0] as { tabSessionId: string }).tabSessionId;
     adapter.marker = "conversation-b";
+    const replacementStreamingTurn = document.createElement("article");
+    adapter.root.replaceChildren(replacementStreamingTurn);
     adapter.snapshot = {
       ...requireSnapshot(adapter),
-      turnElement: document.createElement("article"),
+      turnElement: replacementStreamingTurn,
       responseText: "Nouvelle réponse encore en cours.",
       phase: "streaming",
     };
     await controller.refresh();
 
+    const replacementTerminalTurn = document.createElement("article");
+    adapter.root.replaceChildren(replacementTerminalTurn);
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      turnElement: replacementTerminalTurn,
+      responseText: "Réponse de baseline terminée après remplacement DOM.",
+      phase: "completed",
+    };
+    await controller.refresh();
+
     expect(messages[1]).toEqual({ version: 1, kind: "reset-session", tabSessionId: firstSession });
+    expect(numericMessages(messages)).toHaveLength(1);
+
+    const nextTurn = document.createElement("article");
+    adapter.root.append(nextTurn);
+    adapter.snapshot = {
+      turnElement: nextTurn,
+      promptText: "Question suivante après la baseline SPA.",
+      responseText: "Réponse suivante en cours.",
+      phase: "streaming",
+    };
+    await controller.refresh();
     expect((numericMessages(messages)[1] as { tabSessionId: string }).tabSessionId).not.toBe(
       firstSession,
     );
+  });
+
+  it("keeps the changed-conversation baseline pending across an empty SPA transition", async () => {
+    const { adapter, controller, messages } = createHarness();
+    await controller.start();
+    const sentBeforeNavigation = numericMessages(messages).length;
+    adapter.marker = "conversation-b";
+    adapter.root.replaceChildren();
+    adapter.snapshot = null;
+    await controller.refresh();
+
+    const delayedBaseline = document.createElement("article");
+    adapter.root.append(delayedBaseline);
+    adapter.snapshot = {
+      turnElement: delayedBaseline,
+      promptText: "Question historique chargée après transition.",
+      responseText: "Réponse historique déjà terminée.",
+      phase: "completed",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(sentBeforeNavigation);
+
+    const nextTurn = document.createElement("article");
+    adapter.root.append(nextTurn);
+    adapter.snapshot = {
+      turnElement: nextTurn,
+      promptText: "Question réellement nouvelle.",
+      responseText: "Réponse réellement nouvelle.",
+      phase: "completed",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(sentBeforeNavigation + 1);
+  });
+
+  it("keeps a terminal baseline display-only when its DOM anchor is replaced", async () => {
+    const adapter = new FakeAdapter();
+    adapter.snapshot = { ...requireSnapshot(adapter), phase: "completed" };
+    const { controller, messages } = createHarness(adapter, [], { snapshotAlreadyPresent: true });
+    await controller.start();
+    expect(numericMessages(messages)).toHaveLength(0);
+
+    const replacement = document.createElement("article");
+    adapter.root.replaceChildren(replacement);
+    adapter.snapshot = {
+      turnElement: replacement,
+      promptText: "Même prompt rerendu.",
+      responseText: "Même réponse rerendue.",
+      phase: "completed",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(0);
+
+    const nextTurn = document.createElement("article");
+    adapter.root.append(nextTurn);
+    adapter.snapshot = {
+      turnElement: nextTurn,
+      promptText: "Nouveau prompt ajouté.",
+      responseText: "Nouvelle réponse ajoutée.",
+      phase: "completed",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(1);
+  });
+
+  it("baselines a pre-existing turn when a slowly loaded root appears after start", async () => {
+    const adapter = new FakeAdapter();
+    adapter.rootAvailable = false;
+    adapter.snapshot = { ...requireSnapshot(adapter), phase: "completed" };
+    const { controller, messages } = createHarness(adapter, [], { snapshotAlreadyPresent: true });
+    await controller.start();
+
+    adapter.rootAvailable = true;
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(0);
+
+    const nextTurn = document.createElement("article");
+    adapter.root.append(nextTurn);
+    adapter.snapshot = {
+      turnElement: nextTurn,
+      promptText: "Nouveau prompt après chargement lent.",
+      responseText: "Nouvelle réponse après chargement lent.",
+      phase: "completed",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(1);
   });
 
   it("clears the previous measurement when a changed SPA conversation has no turn", async () => {

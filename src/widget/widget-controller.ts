@@ -127,11 +127,13 @@ export class WidgetController {
       this.preferences.collapsed = true;
       this.applyPreferences();
       this.scheduleReclamp();
+      this.elements.expandButton.focus();
     });
     this.listen(this.elements.expandButton, "click", () => {
       this.preferences.collapsed = false;
       this.applyPreferences();
       this.scheduleReclamp();
+      this.elements.collapseButton.focus();
     });
     this.listen(this.elements.anchorLeftButton, "click", () => this.setSide("left"));
     this.listen(this.elements.anchorRightButton, "click", () => this.setSide("right"));

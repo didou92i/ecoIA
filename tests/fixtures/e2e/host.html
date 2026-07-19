@@ -42,6 +42,23 @@
       if (location.pathname === "/no-context") {
         for (const turn of document.querySelectorAll("[data-fixture-prior-turn]")) turn.remove();
       }
+      if (sessionStorage.getItem("ecoia-e2e-streaming-reload") === "true") {
+        const conversation = document.querySelector("[data-conversation-id]");
+        if (!conversation) throw new Error("E2E_CONVERSATION_FIXTURE_MISSING");
+        const user = document.createElement("article");
+        user.setAttribute("data-message-author-role", "user");
+        user.textContent = "Question synthétique rechargée en cours de réponse.";
+        const assistant = document.createElement("article");
+        assistant.setAttribute("data-message-author-role", "assistant");
+        assistant.setAttribute("data-streaming-reload-answer", "");
+        assistant.setAttribute("aria-busy", "true");
+        assistant.textContent = "Réponse synthétique partielle avant rechargement.";
+        const stop = document.createElement("button");
+        stop.type = "button";
+        stop.setAttribute("data-testid", "stop-button");
+        stop.textContent = "Arrêter";
+        conversation.append(user, assistant, stop);
+      }
     </script>
   </body>
 </html>

@@ -4,6 +4,7 @@ import {
   platformIds,
   type ResetSessionMessage,
 } from "./contracts";
+import { isCanonicalUuidV4 } from "./uuid";
 
 const maximumTokenCount = 10_000_000;
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -78,8 +79,8 @@ export function validateNumericInteractionEvent(
       "generatedAt",
     ]) ||
     value.version !== 1 ||
-    !isBoundedIdentifier(value.eventId) ||
-    !isBoundedIdentifier(value.tabSessionId) ||
+    !isCanonicalUuidV4(value.eventId) ||
+    !isCanonicalUuidV4(value.tabSessionId) ||
     !isPositiveBoundedInteger(value.sequence) ||
     !platformIds.includes(value.platform as (typeof platformIds)[number]) ||
     !isBoundedIdentifier(value.modelProfileId) ||
@@ -99,7 +100,7 @@ export function validateResetSessionMessage(value: unknown): ValidationResult<Re
     !hasExactKeys(value, ["version", "kind", "tabSessionId"]) ||
     value.version !== 1 ||
     value.kind !== "reset-session" ||
-    !isBoundedIdentifier(value.tabSessionId)
+    !isCanonicalUuidV4(value.tabSessionId)
   ) {
     return { ok: false, error: "INVALID_MESSAGE" };
   }

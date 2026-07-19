@@ -23,6 +23,7 @@ const fixtureRoutes = new Set([
   "/manual-model",
   "/model-lifecycle",
   "/c/synthetic-conversation-a",
+  "/c/synthetic-conversation-b",
   "/with-context",
   "/no-context",
   "/network-check",
@@ -66,11 +67,25 @@ async function closeServer(server: Server): Promise<void> {
 
 export async function activateFixtureInteraction(page: Page): Promise<void> {
   await page.evaluate(() => {
-    const answer = document.querySelector<HTMLElement>("[data-answer]");
-    if (!answer) throw new Error("E2E_ANSWER_FIXTURE_MISSING");
-    if (answer.hasAttribute("data-activated-after-ecoia")) return;
-    answer.setAttribute("data-activated-after-ecoia", "");
-    answer.textContent += " Segment synthétique observé après activation.";
+    const conversation = document.querySelector<HTMLElement>("[data-conversation-id]");
+    if (!conversation) throw new Error("E2E_CONVERSATION_FIXTURE_MISSING");
+    if (conversation.querySelector("[data-activated-after-ecoia]")) return;
+    if (location.pathname === "/no-context") {
+      for (const turn of conversation.querySelectorAll(
+        "[data-message-author-role='user'], [data-message-author-role='assistant']",
+      )) {
+        turn.setAttribute("data-ecoia-exclude", "");
+      }
+    }
+    const user = document.createElement("article");
+    user.setAttribute("data-message-author-role", "user");
+    user.setAttribute("data-activated-after-ecoia", "");
+    user.textContent = "Question synthétique observée après activation.";
+    const assistant = document.createElement("article");
+    assistant.setAttribute("data-message-author-role", "assistant");
+    assistant.setAttribute("data-activated-after-ecoia", "");
+    assistant.textContent = "Réponse synthétique observée après activation.";
+    conversation.append(user, assistant);
   });
   await expect(page.locator("eco-ia-widget [data-session]")).toContainText("1 interaction");
 }

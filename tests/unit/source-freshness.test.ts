@@ -48,6 +48,12 @@ describe("source freshness", () => {
     expect(() => findStaleSources([], new Date("not-a-date"))).toThrow("INVALID_SOURCE_DATE");
   });
 
+  it("rejects a source access date later than the review date", () => {
+    expect(() =>
+      findStaleSources([{ id: "future", accessedDate: "2026-07-20" }], reviewedAt),
+    ).toThrow("SOURCE_ACCESSED_AFTER_REVIEW");
+  });
+
   it("rejects a review value that is not a Date", () => {
     expect(() => findStaleSources([], 0 as unknown as Date)).toThrow("INVALID_SOURCE_DATE");
   });

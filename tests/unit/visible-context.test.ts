@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import { tokenCalibration } from "../../src/token/calibration";
-import { selectRecentUtf8Context } from "../../src/adapters/visible-context";
+import {
+  selectRecentNormalizedUtf8Text,
+  selectRecentUtf8Context,
+} from "../../src/adapters/visible-context";
 
 const encoder = new TextEncoder();
 
@@ -52,5 +55,13 @@ describe("selectRecentUtf8Context", () => {
     expect(encoder.encode(context.text).byteLength).toBeLessThanOrEqual(
       tokenCalibration.maximumUtf8Bytes,
     );
+  });
+
+  it("bounds source scanning when an adversarial whitespace run exceeds the output budget", () => {
+    const maximumUtf8Bytes = 16;
+    const context = selectRecentNormalizedUtf8Text(`${" ".repeat(512)}recent`, maximumUtf8Bytes);
+
+    expect(context).toEqual({ text: "recent", coverage: "partial" });
+    expect(encoder.encode(context.text).byteLength).toBeLessThanOrEqual(maximumUtf8Bytes);
   });
 });

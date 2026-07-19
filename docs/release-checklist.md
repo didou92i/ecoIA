@@ -29,6 +29,10 @@ npm run size
 npm run checksums
 ```
 
+`npm run audit` contrôle l’arbre complet installé, y compris la toolchain de développement réellement
+exécutée pour tester et construire les extensions. Aucun avis de sévérité modérée ou supérieure ne
+doit être ignoré silencieusement.
+
 Inspecter ensuite `dist/chromium`, `dist/firefox` et les deux archives. Rechercher l’absence de
 `127.0.0.1`, de source map, de contenu utilisateur, de secret et de code distant. Charger les deux
 artefacts manuellement, tester le thème, le repli, l’ancrage et une réponse sur chaque plateforme

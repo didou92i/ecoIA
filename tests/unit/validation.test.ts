@@ -5,11 +5,15 @@ import {
   validateNumericInteractionEvent,
   validateResetSessionMessage,
 } from "../../src/shared/validation";
+import { testUuid } from "../helpers/test-uuid";
+
+const validEventId = testUuid(1);
+const validSessionId = testUuid(10_001);
 
 const validEvent: NumericInteractionEvent = {
   version: 1,
-  eventId: "event-123",
-  tabSessionId: "tab-session-456",
+  eventId: validEventId,
+  tabSessionId: validSessionId,
   sequence: 3,
   platform: "chatgpt",
   modelProfileId: "openai-gpt-4o-v1",
@@ -80,7 +84,10 @@ describe("numeric interaction event validation", () => {
   it.each([
     { eventId: "" },
     { eventId: "a".repeat(129) },
+    { eventId: "conversation-private-marker" },
+    { eventId: "ABCDEFAB-CDEF-4ABC-8ABC-ABCDEFABCDEF" },
     { tabSessionId: "contains spaces" },
+    { tabSessionId: "00000000-0000-1000-8000-000000000001" },
     { modelProfileId: "../profile" },
     { sequence: 0 },
     { sequence: -1 },
@@ -100,10 +107,14 @@ describe("numeric interaction event validation", () => {
 describe("session reset validation", () => {
   it("accepts only an ephemeral numeric-boundary reset message", () => {
     expect(
-      validateResetSessionMessage({ version: 1, kind: "reset-session", tabSessionId: "tab-1" }),
+      validateResetSessionMessage({
+        version: 1,
+        kind: "reset-session",
+        tabSessionId: validSessionId,
+      }),
     ).toEqual({
       ok: true,
-      value: { version: 1, kind: "reset-session", tabSessionId: "tab-1" },
+      value: { version: 1, kind: "reset-session", tabSessionId: validSessionId },
     });
   });
 
@@ -112,8 +123,18 @@ describe("session reset validation", () => {
       validateResetSessionMessage({
         version: 1,
         kind: "reset-session",
-        tabSessionId: "tab-1",
+        tabSessionId: validSessionId,
         conversationId: "private-id",
+      }),
+    ).toEqual({ ok: false, error: "INVALID_MESSAGE" });
+  });
+
+  it("rejects a reset carrying a non-UUID private marker", () => {
+    expect(
+      validateResetSessionMessage({
+        version: 1,
+        kind: "reset-session",
+        tabSessionId: "conversation-private-marker",
       }),
     ).toEqual({ ok: false, error: "INVALID_MESSAGE" });
   });

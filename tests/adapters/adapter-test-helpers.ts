@@ -4,6 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { PlatformAdapter } from "../../src/adapters/adapter-contract";
+import { tokenCalibration } from "../../src/token/calibration";
 
 interface AdapterContractOptions {
   platform: string;
@@ -162,6 +163,40 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       );
     });
 
+    it("stops before reading older text once the recent UTF-8 budget is exhausted", () => {
+      const root = requireRoot(options.adapter);
+      const userTemplate = root.querySelector(options.userSelector);
+      const assistantTemplate = root.querySelector(options.assistantSelector);
+      if (!userTemplate || !assistantTemplate) throw new Error("MISSING_TURN_FIXTURE");
+
+      let olderTextReads = 0;
+      const olderUser = userTemplate.cloneNode(false) as Element;
+      const olderText = document.createTextNode("Texte ancien qui ne doit pas être lu.");
+      Object.defineProperty(olderText, "data", {
+        configurable: true,
+        get() {
+          olderTextReads += 1;
+          return "Texte ancien qui ne doit pas être lu.";
+        },
+      });
+      olderUser.append(olderText);
+      const recentAssistant = assistantTemplate.cloneNode(false) as Element;
+      recentAssistant.textContent = "é".repeat(
+        Math.ceil(tokenCalibration.maximumUtf8Bytes / 2) + 32,
+      );
+      const currentUser = userTemplate.cloneNode(false) as Element;
+      currentUser.textContent = "Prompt courant exclu.";
+      root.replaceChildren(olderUser, recentAssistant, currentUser);
+
+      const context = options.adapter.readVisibleContext(root, currentUser);
+
+      expect(olderTextReads).toBe(0);
+      expect(context.coverage).toBe("partial");
+      expect(new TextEncoder().encode(context.text).byteLength).toBeLessThanOrEqual(
+        tokenCalibration.maximumUtf8Bytes,
+      );
+    });
+
     it("detects an SPA conversation marker change without exposing it", () => {
       const before = options.adapter.getConversationMarker(document);
       const marker = document.querySelector(`[${options.markerAttribute}]`);
@@ -171,7 +206,7 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       expect(before).not.toBe(after);
     });
 
-    it("prefers an explicit nested conversation marker over pathname fallback", () => {
+    it("uses an explicit nested conversation marker when no meaningful path exists", () => {
       const root = requireRoot(options.adapter);
       root.removeAttribute("data-conversation-id");
       root.removeAttribute("data-thread-id");
@@ -201,6 +236,29 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       history.pushState(null, "", "/");
       marker.removeAttribute(options.markerAttribute);
       expect(options.adapter.getConversationMarker(document)).toBeNull();
+    });
+
+    it("keeps the non-root pathname canonical across a cross-path marker gap", () => {
+      const marker = document.querySelector(`[${options.markerAttribute}]`);
+      if (!marker) throw new Error("MISSING_MARKER_FIXTURE");
+      history.replaceState(null, "", "/c/conversation-a");
+      marker.setAttribute(options.markerAttribute, "conversation-a");
+      const before = options.adapter.getConversationMarker(document);
+
+      history.pushState(null, "", "/c/conversation-b");
+      marker.removeAttribute(options.markerAttribute);
+      const duringGap = options.adapter.getConversationMarker(document);
+      marker.setAttribute(options.markerAttribute, "conversation-b");
+      const afterRestore = options.adapter.getConversationMarker(document);
+
+      expect(before).toBe("/c/conversation-a");
+      expect(duringGap).toBe("/c/conversation-b");
+      expect(afterRestore).toBe(duringGap);
+      expect(
+        [before, duringGap, afterRestore].filter(
+          (identity, index, identities) => index > 0 && identity !== identities[index - 1],
+        ),
+      ).toHaveLength(1);
     });
 
     it("fails closed on unknown markup", () => {

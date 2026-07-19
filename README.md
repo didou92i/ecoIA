@@ -100,9 +100,10 @@ Une question et ses éventuels segments de réponse visibles comptent comme une 
 leurs textes visibles sont cumulés pour l’estimation. Consultez
 [la méthodologie](METHODOLOGY.md) et [la calibration des tokens](docs/token-calibration.md).
 
-Les totaux commencent à partir de l’activation d’ecoIA. Lors d’un rechargement, une réponse déjà
-terminée reste estimée à l’écran mais n’est pas ajoutée une seconde fois ; une réponse en cours ou une
-mutation observée ensuite peut être agrégée.
+Les totaux commencent à partir de l’activation d’ecoIA. Lors d’un rechargement, le tour déjà visible
+reste estimé à l’écran mais demeure entièrement hors agrégation, même si sa réponse était en cours :
+la suite après rechargement est exclue pour éviter tout double comptage. Seul un tour réellement ajouté
+ensuite peut être agrégé.
 
 ## Confidentialité
 
@@ -144,7 +145,9 @@ npm run build
 npm run size
 ```
 
-Le runtime n’a aucune dépendance JavaScript. Consultez [CONTRIBUTING.md](CONTRIBUTING.md),
+Le runtime n’a aucune dépendance JavaScript. La commande `npm run audit` couvre néanmoins tout
+l’arbre installé, y compris la toolchain de développement utilisée pour tester et construire le
+projet. Consultez [CONTRIBUTING.md](CONTRIBUTING.md),
 [le guide d’adaptateur](docs/adding-an-adapter.md) et
 [le guide de profil d’impact](docs/adding-an-impact-profile.md). Les décisions d’architecture sont
 consignées dans [l’ADR 0001](docs/adr/0001-local-privacy-first-extension.md) et

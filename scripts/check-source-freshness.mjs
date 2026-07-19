@@ -33,14 +33,17 @@ export function findStaleSources(sources, reviewedAt, maximumAgeDays = 366) {
     throw new Error("INVALID_SOURCE_DATE");
   }
 
-  return sources
-    .filter(
-      (source) =>
-        reviewedAt.valueOf() - sourceAccessedAt(source.accessedDate).valueOf() >
-        maximumAgeDays * millisecondsPerDay,
-    )
-    .map((source) => source.id)
-    .sort();
+  const staleSourceIds = [];
+  for (const source of sources) {
+    const accessedAt = sourceAccessedAt(source.accessedDate);
+    if (accessedAt.valueOf() > reviewedAt.valueOf()) {
+      throw new Error("SOURCE_ACCESSED_AFTER_REVIEW");
+    }
+    if (reviewedAt.valueOf() - accessedAt.valueOf() > maximumAgeDays * millisecondsPerDay) {
+      staleSourceIds.push(source.id);
+    }
+  }
+  return staleSourceIds.sort();
 }
 
 async function runCli() {

@@ -66,7 +66,12 @@ describe("open-source documentation", () => {
     expect(privacy).toMatch(/aucune URL|pas d.URL/iu);
     expect(privacy).toMatch(/reprise/iu);
     expect(privacy).toMatch(/invalide|invalid/iu);
-    expect(privacy).toMatch(/expir/iu);
+    expect(privacy).toMatch(/sans expiration arbitraire|n.expire pas/iu);
+    expect(privacy).toMatch(/peut persister[\s\S]*(?:reprise|désinstallation)/iu);
+    expect(privacy).toMatch(
+      /agrégats numériques[\s\S]*métadonnées éphémères bornées[\s\S]*sans texte de conversation ni URL/iu,
+    );
+    expect(privacy).not.toMatch(/exclusivement numérique/iu);
   });
 
   it("states that totals start at activation and bounds session-key retention", async () => {
@@ -74,7 +79,10 @@ describe("open-source documentation", () => {
     expect(`${readme}\n${privacy}`).toMatch(/à partir de l.activation/iu);
     expect(privacy).toContain("`ecoia.sessions.v1`");
     expect(privacy).toMatch(/30 minutes/iu);
-    expect(privacy).toMatch(/traitement suivant/iu);
+    expect(privacy).toMatch(/prochain[\s\S]*événement accepté ou[\s\S]*réinitialisation/iu);
+    expect(`${readme}\n${privacy}`).toMatch(
+      /rechargement[\s\S]*réponse(?: était| est encore)? en cours[\s\S]*(?:reste|remainder|suite)[\s\S]*(?:exclu|non agrégé)/iu,
+    );
   });
 
   it("ships the MIT license and discloses the AI Wattch boundary", async () => {

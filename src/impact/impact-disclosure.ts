@@ -1,4 +1,5 @@
 import { getImpactProfile, impactRegistry } from "./profile-registry";
+import type { PlatformId } from "../shared/contracts";
 import type { ConfidenceGrade, ImpactEstimate, ImpactIndicator } from "./profile-types";
 
 export interface IndicatorQualityDisclosure {
@@ -47,6 +48,10 @@ const indicatorDefinitions = [
   { key: "carbon", label: "Carbone", property: "carbonG" },
 ] as const;
 
+const perplexityPlatformLimitation =
+  "Perplexity peut ajouter recherche, récupération et outils invisibles ; leurs tokens et impacts ne sont pas inclus.";
+const perplexityOverlapPattern = /Perplexity|retrieval|récupération|search|recherche|tool|outil/iu;
+
 function worstGrade(indicators: IndicatorQualityDisclosure[]): ConfidenceGrade {
   let worst: ConfidenceGrade = "A";
   for (const indicator of indicators) {
@@ -70,7 +75,10 @@ function findSource(sourceId: string): DisclosureSource {
   };
 }
 
-export function buildImpactDisclosure(impact: ImpactEstimate): DataQualityDisclosure {
+export function buildImpactDisclosure(
+  impact: ImpactEstimate,
+  platform?: PlatformId,
+): DataQualityDisclosure {
   const profile = getImpactProfile(impact.profileId);
   if (!profile) throw new Error("UNKNOWN_IMPACT_PROFILE");
 
@@ -93,12 +101,18 @@ export function buildImpactDisclosure(impact: ImpactEstimate): DataQualityDisclo
     sources.push(findSource(indicator.sourceId));
   }
 
+  const profileLimitations =
+    platform === "perplexity"
+      ? profile.limitations.filter((limitation) => !perplexityOverlapPattern.test(limitation))
+      : profile.limitations;
+  const platformLimitations = platform === "perplexity" ? [perplexityPlatformLimitation] : [];
+
   return {
     overallGrade,
     overallLabel: `Qualité des données · ${overallGrade}`,
     overallExplanation: gradeExplanations[overallGrade],
     indicators,
     sources,
-    limitations: [...new Set(profile.limitations)],
+    limitations: [...new Set([...profileLimitations, ...platformLimitations])],
   };
 }

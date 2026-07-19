@@ -486,6 +486,33 @@ describe("ecoIA widget", () => {
     expect(widget.hasAttribute("collapsed")).toBe(false);
   });
 
+  it("moves focus to a visible control across collapse and expansion clicks", () => {
+    const widget = createWidget();
+    const collapseButton = widget.shadowRoot?.querySelector<HTMLButtonElement>("[data-collapse]");
+    const expandButton = widget.shadowRoot?.querySelector<HTMLButtonElement>("[data-expand]");
+    if (!collapseButton || !expandButton) throw new Error("MISSING_COLLAPSE_CONTROLS");
+
+    collapseButton.focus();
+    collapseButton.click();
+    expect(widget.hasAttribute("collapsed")).toBe(true);
+    expect(widget.shadowRoot?.activeElement).toBe(expandButton);
+
+    expandButton.click();
+    expect(widget.hasAttribute("collapsed")).toBe(false);
+    expect(widget.shadowRoot?.activeElement).toBe(collapseButton);
+  });
+
+  it("does not steal document focus for a programmatic toolbar toggle", () => {
+    const outsideButton = document.createElement("button");
+    document.body.append(outsideButton);
+    outsideButton.focus();
+    const widget = createWidget();
+
+    widget.toggleCollapsed();
+
+    expect(document.activeElement).toBe(outsideButton);
+  });
+
   it("offers keyboard-operable left and right anchoring", () => {
     const onPreferencesChange = vi.fn();
     const widget = createWidget();
