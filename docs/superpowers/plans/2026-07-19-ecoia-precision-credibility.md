@@ -215,6 +215,12 @@ export function buildImpactDisclosure(impact: ImpactEstimate): DataQualityDisclo
 
 ## Task 4: Add a compact pedagogical control surface to the widget
 
+**Atomic execution note:** Task 4 and Task 5 change the same required `WidgetViewModel` contract.
+They must be implemented, tested and reviewed by one fresh implementer as a single atomic task. A
+standalone Task 4 commit would either fail type checking or expose an interactive model selector
+without a working conversation-scoped callback. The combined commit must satisfy both task briefs;
+do not create an intermediate production commit between their RED/GREEN cycles.
+
 **Files:**
 
 - Modify: `src/widget/eco-widget.ts`
@@ -283,6 +289,10 @@ export interface WidgetConfiguration {
 - [ ] Inspect the diff and commit with `feat: add pedagogical precision controls`.
 
 ## Task 5: Integrate conversation-scoped model choice and numeric context caching
+
+**Execution note:** This is the integration half of the atomic Task 4 + Task 5 change. It is not
+dispatched to a second implementer after Task 4; both halves share one implementation report, one
+review package and one task-quality gate.
 
 **Files:**
 
