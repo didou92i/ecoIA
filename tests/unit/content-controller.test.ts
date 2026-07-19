@@ -8,6 +8,7 @@ import type {
   VisibleTurnSnapshot,
 } from "../../src/adapters/adapter-contract";
 import type { BrowserApi, ExtensionStorageArea } from "../../src/browser/browser-api";
+import { registerServiceWorker } from "../../src/background/service-worker";
 import { ContentController, type ContentWidget } from "../../src/content/content-controller";
 import { estimateImpact } from "../../src/impact/impact-engine";
 import { estimateVisibleTokens } from "../../src/token/token-estimator";
@@ -123,6 +124,75 @@ function createHarness(adapter = new FakeAdapter()) {
   };
 }
 
+function createIntegratedHarness(adapter = new FakeAdapter()) {
+  const messages: unknown[] = [];
+  const updates: WidgetViewModel[] = [];
+  const local = new MemoryStorageArea();
+  const session = new MemoryStorageArea();
+  let workerListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
+  let toolbarListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
+
+  const workerApi: BrowserApi = {
+    runtime: {
+      sendMessage: vi.fn(async () => undefined),
+      onMessage(listener) {
+        workerListener = listener;
+        return () => (workerListener = null);
+      },
+    },
+    storage: { local, session },
+  };
+  const cleanupWorker = registerServiceWorker(workerApi, {
+    now: () => 1_721_318_400_000,
+    localDate: () => "2026-07-18",
+  });
+
+  const contentApi: BrowserApi = {
+    runtime: {
+      async sendMessage(message) {
+        messages.push(structuredClone(message));
+        const listener = workerListener;
+        if (!listener) throw new Error("MISSING_WORKER_LISTENER");
+        return new Promise((resolve) => {
+          const keepChannelOpen = listener(message, {}, (response) =>
+            resolve(structuredClone(response)),
+          );
+          if (keepChannelOpen !== true) throw new Error("WORKER_CHANNEL_CLOSED");
+        });
+      },
+      onMessage(listener) {
+        toolbarListener = listener;
+        return () => (toolbarListener = null);
+      },
+    },
+    storage: { local, session },
+  };
+  const widget = Object.assign(document.createElement("div"), {
+    configure: vi.fn(),
+    update: (viewModel: WidgetViewModel) => updates.push(structuredClone(viewModel)),
+    toggleCollapsed: vi.fn(),
+  }) as ContentWidget;
+  let uuidIndex = 0;
+  const controller = new ContentController({
+    document,
+    adapter,
+    api: contentApi,
+    createWidget: () => widget,
+    randomUUID: () => `integrated-uuid-${++uuidIndex}`,
+    now: () => 1_721_318_400_000 + uuidIndex,
+  });
+
+  return {
+    controller,
+    messages,
+    updates,
+    widget,
+    cleanupWorker,
+    getWorkerListener: () => workerListener,
+    getToolbarListener: () => toolbarListener,
+  };
+}
+
 function modelSelectionCallback(widget: ContentWidget): (profileId: string | null) => void {
   const configure = widget.configure as ReturnType<typeof vi.fn>;
   const configuration = configure.mock.calls[0]?.[0] as
@@ -206,6 +276,35 @@ describe("content controller", () => {
       warning: null,
     });
     expect(updates.at(-1)?.diagnostic.model).toBe("manual");
+  });
+
+  it("replaces one real worker/store contribution after the captured model callback", async () => {
+    const harness = createIntegratedHarness();
+    await harness.controller.start();
+    expect(harness.getWorkerListener()).not.toBeNull();
+    expect(harness.getToolbarListener()).not.toBeNull();
+    expect(harness.getWorkerListener()).not.toBe(harness.getToolbarListener());
+
+    modelSelectionCallback(harness.widget)("openai-gpt-4-1-v1");
+    await harness.controller.refresh();
+
+    const [automatic, manual] = numericMessages(harness.messages) as Array<{
+      eventId: string;
+      sequence: number;
+      modelProfileId: string;
+    }>;
+    expect(manual?.eventId).toBe(automatic?.eventId);
+    expect(manual?.sequence).toBe((automatic?.sequence ?? 0) + 1);
+    expect(manual?.modelProfileId).toBe("openai-gpt-4-1-v1");
+    expect(harness.updates.at(-1)).toMatchObject({
+      modelControl: {
+        resolution: "manual",
+        selectedProfileId: "openai-gpt-4-1-v1",
+      },
+      session: { interactionCount: 1 },
+      day: { interactionCount: 1, localDate: "2026-07-18" },
+    });
+    harness.cleanupWorker();
   });
 
   it("rejects unknown and incompatible profiles without changing or sending the measurement", async () => {
@@ -382,6 +481,45 @@ describe("content controller", () => {
     expect(JSON.stringify(messages)).not.toContain("conversation-b");
   });
 
+  it("clears the previous measurement when a changed SPA conversation has no turn", async () => {
+    const adapter = new FakeAdapter();
+    adapter.contextSnapshot = { text: "Contexte du premier tour", coverage: "complete" };
+    const { controller, updates, widget } = createHarness(adapter);
+    await controller.start();
+    modelSelectionCallback(widget)("openai-gpt-4-1-v1");
+    await controller.refresh();
+    const previous = updates.at(-1);
+    expect(previous?.current.impact).not.toBeNull();
+    expect(previous?.current.tokens.input.central).toBeGreaterThan(0);
+
+    adapter.marker = "conversation-empty";
+    adapter.snapshot = null;
+    await controller.refresh();
+
+    const current = updates.at(-1);
+    expect(current?.current).toEqual({
+      tokens: {
+        input: { low: 0, central: 0, high: 0 },
+        output: { low: 0, central: 0, high: 0 },
+        source: "estimated",
+      },
+      impact: null,
+    });
+    expect(current?.disclosure).toBeNull();
+    expect(current?.context).toEqual({
+      tokens: { low: 0, central: 0, high: 0 },
+      coverage: "none",
+      hasContext: false,
+    });
+    expect(current?.modelControl.selectedProfileId).toBeNull();
+    expect(current?.diagnostic).toMatchObject({
+      conversation: "detected",
+      context: "absent",
+      response: "waiting",
+    });
+    expect(current?.current).not.toEqual(previous?.current);
+  });
+
   it("fails closed when the conversation root is missing", async () => {
     const adapter = new FakeAdapter();
     adapter.rootAvailable = false;
@@ -389,6 +527,12 @@ describe("content controller", () => {
     await controller.start();
     expect(messages).toHaveLength(0);
     expect(updates.at(-1)?.state).toBe("measurement-paused");
+    expect(updates.at(-1)?.context).toMatchObject({ coverage: "none", hasContext: false });
+    expect(updates.at(-1)?.diagnostic).toMatchObject({
+      conversation: "paused",
+      context: "absent",
+      response: "waiting",
+    });
   });
 
   it("fails closed when the extension API is invalidated during a DOM refresh", async () => {

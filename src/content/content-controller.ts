@@ -53,8 +53,19 @@ function tokenizerFamily(platform: PlatformId): TokenizerFamily {
   return platform;
 }
 
-function emptyViewModel(platform: PlatformId): WidgetViewModel {
+function emptyMeasurement(): Pick<WidgetViewModel, "context" | "current" | "disclosure"> {
   const zero = createRange(0, 0, 0);
+  return {
+    context: { tokens: zero, coverage: "none", hasContext: false },
+    current: {
+      tokens: { input: zero, output: zero, source: "estimated" },
+      impact: null,
+    },
+    disclosure: null,
+  };
+}
+
+function emptyViewModel(platform: PlatformId): WidgetViewModel {
   const detected = { label: "Modèle non communiqué", observed: false };
   const resolution = resolveModelProfile({ platform, detected, manualProfileId: null });
   return {
@@ -69,18 +80,13 @@ function emptyViewModel(platform: PlatformId): WidgetViewModel {
       warning: "Modèle non communiqué — profil générique utilisé",
       selectionError: null,
     },
-    context: { tokens: zero, coverage: "none", hasContext: false },
-    disclosure: null,
+    ...emptyMeasurement(),
     diagnostic: {
       platform: "recognized",
       conversation: "detected",
       model: resolution.source,
       context: "absent",
       response: "waiting",
-    },
-    current: {
-      tokens: { input: zero, output: zero, source: "estimated" },
-      impact: null,
     },
     session: null,
     day: null,
@@ -183,8 +189,7 @@ export class ContentController {
     });
     const root = this.adapter.findConversationRoot(this.document);
     if (!root) {
-      this.viewModel = { ...this.viewModel, state: "measurement-paused" };
-      this.widget.update(this.viewModel);
+      this.pauseMeasurement();
       return;
     }
     this.conversationMarker = this.adapter.getConversationMarker(this.document);
@@ -203,12 +208,14 @@ export class ContentController {
     this.unsubscribeAdapter?.();
     this.unsubscribeAdapter = null;
     this.observedRoot = null;
+    this.pauseMeasurement();
+  }
+
+  private pauseMeasurement(): void {
     this.viewModel = {
       ...this.viewModel,
       state: "measurement-paused",
-      current: emptyViewModel(this.adapter.platform).current,
-      context: emptyViewModel(this.adapter.platform).context,
-      disclosure: null,
+      ...emptyMeasurement(),
       diagnostic: {
         ...this.viewModel.diagnostic,
         conversation: "paused",
@@ -279,20 +286,7 @@ export class ContentController {
       this.unsubscribeAdapter?.();
       this.unsubscribeAdapter = null;
       this.observedRoot = null;
-      this.viewModel = {
-        ...this.viewModel,
-        state: "measurement-paused",
-        current: emptyViewModel(this.adapter.platform).current,
-        context: emptyViewModel(this.adapter.platform).context,
-        disclosure: null,
-        diagnostic: {
-          ...this.viewModel.diagnostic,
-          conversation: "paused",
-          context: "absent",
-          response: "waiting",
-        },
-      };
-      widget.update(this.viewModel);
+      this.pauseMeasurement();
       return;
     }
     this.subscribeToRoot(root);
@@ -315,7 +309,7 @@ export class ContentController {
         ...this.viewModel,
         state: "active",
         modelControl: this.createModelControl(resolution),
-        context: emptyViewModel(this.adapter.platform).context,
+        ...emptyMeasurement(),
         diagnostic: {
           platform: "recognized",
           conversation: "detected",
