@@ -632,6 +632,27 @@ describe("content controller", () => {
     harness.cleanupWorker();
   });
 
+  it("rebinds an unchanged acknowledged streaming turn across repeated refreshes", async () => {
+    const adapter = new FakeAdapter();
+    const harness = createIntegratedHarness(adapter);
+    await harness.controller.start();
+    const sentBeforeReplacement = numericMessages(harness.messages).length;
+
+    const replacementTurn = document.createElement("article");
+    adapter.root.replaceChildren(replacementTurn);
+    adapter.snapshot = { ...requireSnapshot(adapter), turnElement: replacementTurn };
+    await harness.controller.refresh();
+    await harness.controller.refresh();
+
+    expect(numericMessages(harness.messages)).toHaveLength(sentBeforeReplacement);
+    expect(harness.updates.at(-1)).toMatchObject({
+      session: { interactionCount: 1 },
+      day: { interactionCount: 1 },
+    });
+    harness.controller.stop();
+    harness.cleanupWorker();
+  });
+
   it("starts a new interaction when virtualization replaces a terminal turn with a streaming turn", async () => {
     const adapter = new FakeAdapter();
     const harness = createIntegratedHarness(adapter);
@@ -680,6 +701,7 @@ describe("content controller", () => {
     adapter.root.replaceChildren(replacementTurn);
     adapter.snapshot = { ...terminalSnapshot, turnElement: replacementTurn };
     await harness.controller.refresh();
+    await harness.controller.refresh();
 
     expect(numericMessages(harness.messages)).toHaveLength(sentBeforeReplacement);
     expect(harness.updates.at(-1)).toMatchObject({
@@ -688,6 +710,27 @@ describe("content controller", () => {
     });
     harness.controller.stop();
     harness.cleanupWorker();
+  });
+
+  it("counts a new streaming turn that replaces a pre-existing terminal baseline", async () => {
+    const adapter = new FakeAdapter();
+    adapter.snapshot = { ...requireSnapshot(adapter), phase: "completed" };
+    const harness = createHarness(adapter, [], { snapshotAlreadyPresent: true });
+    await harness.controller.start();
+    expect(numericMessages(harness.messages)).toHaveLength(0);
+
+    const firstActiveTurn = document.createElement("article");
+    adapter.root.replaceChildren(firstActiveTurn);
+    adapter.snapshot = {
+      turnElement: firstActiveTurn,
+      promptText: "Premier prompt actif après la baseline virtualisée.",
+      responseText: "Première réponse active en cours.",
+      phase: "streaming",
+    };
+    await harness.controller.refresh();
+
+    expect(numericMessages(harness.messages)).toHaveLength(1);
+    harness.controller.stop();
   });
 
   it("retries an unacknowledged numeric signature with the same event identity and sequence", async () => {

@@ -443,6 +443,10 @@ export class ContentController {
       if (snapshot.phase !== "streaming") baseline.terminalObserved = true;
       return true;
     }
+    if (baseline.terminalObserved && snapshot.phase === "streaming") {
+      this.baselineTurn = null;
+      return false;
+    }
     if (!baseline.terminalObserved || !root.contains(baseline.turnElement)) {
       this.baselineTurn = {
         turnElement: snapshot.turnElement,
@@ -605,7 +609,15 @@ export class ContentController {
         });
         return;
       }
-      if (previousState?.acknowledgedSignature === signature) return;
+      if (previousState?.acknowledgedSignature === signature) {
+        if (!directState) {
+          this.turnStates.set(snapshot.turnElement, {
+            ...previousState,
+            phase: snapshot.phase,
+          });
+        }
+        return;
+      }
       this.turnStates.set(snapshot.turnElement, {
         eventId: event.eventId,
         sequence,
