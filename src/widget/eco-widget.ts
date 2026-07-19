@@ -1,10 +1,13 @@
 import type { ImpactEstimate } from "../impact/profile-types";
-import { impactRegistry } from "../impact/profile-registry";
+import type { DataQualityDisclosure } from "../impact/impact-disclosure";
+import type { ModelProfileOption, ModelResolutionSource } from "../impact/model-selection";
 import type { NumericAggregate } from "../storage/storage-types";
 import type { PlatformId, VisibleTokenEstimate } from "../shared/contracts";
+import type { ContextTokenEstimate } from "../token/context-envelope";
 import {
   formatCarbon,
   formatCarDistance,
+  formatContextTokenEstimate,
   formatEnergy,
   formatTelevisionTime,
   formatTokenRange,
@@ -24,10 +27,30 @@ export type WidgetMeasurementState =
   | "measurement-paused"
   | "unsupported";
 
+export type ContextDiagnosticState = "absent" | "complete" | "partial";
+export type ResponseDiagnosticState = "waiting" | "streaming" | "complete" | "interrupted";
+
 export interface WidgetViewModel {
   platform: PlatformId;
-  model: string;
   state: WidgetMeasurementState;
+  modelControl: {
+    detectedLabel: string;
+    effectiveLabel: string;
+    resolution: ModelResolutionSource;
+    selectedProfileId: string | null;
+    options: ModelProfileOption[];
+    warning: string | null;
+    selectionError: string | null;
+  };
+  context: ContextTokenEstimate;
+  disclosure: DataQualityDisclosure | null;
+  diagnostic: {
+    platform: "recognized" | "unsupported";
+    conversation: "detected" | "paused";
+    model: ModelResolutionSource;
+    context: ContextDiagnosticState;
+    response: ResponseDiagnosticState;
+  };
   current: {
     tokens: VisibleTokenEstimate;
     impact: ImpactEstimate | null;
@@ -36,9 +59,10 @@ export interface WidgetViewModel {
   day: NumericAggregate | null;
 }
 
-interface WidgetConfiguration {
+export interface WidgetConfiguration {
   preferences?: Partial<WidgetPreferences>;
   onPreferencesChange?: (preferences: WidgetPreferences) => void;
+  onModelSelectionChange?: (profileId: string | null) => void;
 }
 
 const stateLabels: Record<WidgetMeasurementState, string> = {
@@ -66,6 +90,37 @@ function renderEstimate(
   valueElement.textContent = estimate.value;
   rangeElement.textContent = estimate.range;
 }
+
+function replaceTextList(list: HTMLUListElement, values: string[], dataAttribute?: string): void {
+  const items = values.map((value) => {
+    const item = document.createElement("li");
+    if (dataAttribute) item.setAttribute(dataAttribute, "");
+    item.textContent = value;
+    return item;
+  });
+  list.replaceChildren(...items);
+}
+
+const diagnosticLabels = {
+  platform: { recognized: "Plateforme · Reconnue", unsupported: "Plateforme · Non reconnue" },
+  conversation: { detected: "Conversation · Détectée", paused: "Conversation · Mesure en pause" },
+  model: {
+    automatic: "Modèle · Automatique",
+    manual: "Modèle · Manuel",
+    generic: "Modèle · Générique",
+  },
+  context: {
+    absent: "Contexte · Absent",
+    complete: "Contexte · Complet",
+    partial: "Contexte · Partiel",
+  },
+  response: {
+    waiting: "Réponse · En attente",
+    streaming: "Réponse · En cours",
+    complete: "Réponse · Terminée",
+    interrupted: "Réponse · Interrompue",
+  },
+} as const;
 
 class EcoIaWidgetRuntime {
   private readonly elements: WidgetElements;
@@ -134,7 +189,25 @@ class EcoIaWidgetRuntime {
   private render(viewModel: WidgetViewModel): void {
     this.lastRenderAt = performance.now();
     this.elements.status.textContent = stateLabels[viewModel.state];
-    this.elements.model.textContent = viewModel.model || "Modèle non communiqué";
+    this.elements.model.textContent = viewModel.modelControl.effectiveLabel;
+    this.elements.detectedModel.textContent = `Détecté : ${viewModel.modelControl.detectedLabel}`;
+    this.elements.modelWarning.hidden = viewModel.modelControl.warning === null;
+    this.elements.modelWarningText.textContent = viewModel.modelControl.warning ?? "";
+    this.elements.selectionError.textContent = viewModel.modelControl.selectionError ?? "";
+    this.controller?.updateModelControl(
+      viewModel.platform,
+      viewModel.modelControl.options,
+      viewModel.modelControl.selectedProfileId,
+    );
+    this.elements.context.hidden = !viewModel.context.hasContext;
+    this.elements.context.textContent = viewModel.context.hasContext
+      ? formatContextTokenEstimate(viewModel.context.tokens)
+      : "";
+    const partialContextExplanation =
+      viewModel.context.coverage === "partial"
+        ? "Contexte partiel : les tours les plus anciens ont été exclus. "
+        : "";
+    this.elements.contextExplanation.textContent = `${partialContextExplanation}Le fournisseur peut tronquer, résumer, mettre en cache ou enrichir ce contexte.`;
     renderEstimate(
       this.elements.inputTokens,
       this.elements.inputTokenRange,
@@ -175,17 +248,6 @@ class EcoIaWidgetRuntime {
         this.elements.carbonRange,
         formatCarbon(impact.carbonG.range),
       );
-      this.elements.confidence.textContent = `Énergie ${impact.energyWh.confidence} · Eau ${impact.waterMl.confidence} · Carbone ${impact.carbonG.confidence}`;
-      const source = impactRegistry.sources.find(
-        (candidate) => candidate.id === impact.waterMl.sourceId,
-      );
-      if (source) {
-        this.elements.sourceLink.href = source.url;
-        this.elements.sourceLink.hidden = false;
-      } else {
-        this.elements.sourceLink.removeAttribute("href");
-        this.elements.sourceLink.hidden = true;
-      }
     } else {
       for (const element of [
         this.elements.water,
@@ -198,13 +260,59 @@ class EcoIaWidgetRuntime {
         this.elements.energyRange,
         this.elements.carbon,
         this.elements.carbonRange,
-        this.elements.confidence,
       ]) {
         element.textContent = "En attente";
       }
-      this.elements.sourceLink.hidden = true;
-      this.elements.sourceLink.removeAttribute("href");
     }
+
+    const disclosure = viewModel.disclosure;
+    if (disclosure) {
+      this.elements.qualityOverall.textContent = disclosure.overallLabel;
+      this.elements.qualityExplanation.textContent = disclosure.overallExplanation;
+      replaceTextList(
+        this.elements.qualityIndicators,
+        disclosure.indicators.map(
+          (indicator) => `${indicator.label} · ${indicator.grade} · ${indicator.explanation}`,
+        ),
+        "data-quality-indicator",
+      );
+      const sourceItems = disclosure.sources.map((source) => {
+        const item = document.createElement("li");
+        item.setAttribute("data-disclosure-source", "");
+        const title = document.createElement("strong");
+        title.textContent = source.title;
+        const metadata = document.createElement("span");
+        metadata.className = "source-meta";
+        metadata.textContent = `Date : ${source.publicationDate} · Périmètre : ${source.scope} · Limite : ${source.primaryLimitation}`;
+        const link = document.createElement("a");
+        link.href = source.url;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = "Ouvrir la source";
+        item.append(title, metadata, link);
+        return item;
+      });
+      this.elements.sourceList.replaceChildren(...sourceItems);
+      replaceTextList(this.elements.limitations, disclosure.limitations);
+    } else {
+      this.elements.qualityOverall.textContent = "Qualité des données · En attente";
+      this.elements.qualityExplanation.textContent = "";
+      this.elements.qualityIndicators.replaceChildren();
+      this.elements.sourceList.replaceChildren();
+      this.elements.limitations.replaceChildren();
+    }
+
+    replaceTextList(
+      this.elements.diagnostics,
+      [
+        diagnosticLabels.platform[viewModel.diagnostic.platform],
+        diagnosticLabels.conversation[viewModel.diagnostic.conversation],
+        diagnosticLabels.model[viewModel.diagnostic.model],
+        diagnosticLabels.context[viewModel.diagnostic.context],
+        diagnosticLabels.response[viewModel.diagnostic.response],
+      ],
+      "data-diagnostic-row",
+    );
 
     if (viewModel.state === "completed" && this.previousState !== "completed") {
       this.elements.live.textContent = `Réponse terminée. ${this.elements.water.textContent}, ${this.elements.car.textContent}, ${this.elements.television.textContent}.`;

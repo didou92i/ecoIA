@@ -2,13 +2,19 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { PlatformAdapter, VisibleTurnSnapshot } from "../../src/adapters/adapter-contract";
+import type {
+  PlatformAdapter,
+  VisibleContextSnapshot,
+  VisibleTurnSnapshot,
+} from "../../src/adapters/adapter-contract";
 import type { BrowserApi, ExtensionStorageArea } from "../../src/browser/browser-api";
 import { ContentController, type ContentWidget } from "../../src/content/content-controller";
+import { estimateImpact } from "../../src/impact/impact-engine";
+import { estimateVisibleTokens } from "../../src/token/token-estimator";
 import type { WidgetViewModel } from "../../src/widget/eco-widget";
 
 class MemoryStorageArea implements ExtensionStorageArea {
-  private readonly values: Record<string, unknown> = {};
+  readonly values: Record<string, unknown> = {};
   async get(): Promise<Record<string, unknown>> {
     return structuredClone(this.values);
   }
@@ -32,21 +38,27 @@ class FakeAdapter implements PlatformAdapter {
     phase: "streaming",
   };
   model = "GPT-4o";
+  modelObserved = true;
+  contextSnapshot: VisibleContextSnapshot = { text: "", coverage: "complete" };
+  contextReadCount = 0;
+  lastTurnSnapshot: VisibleTurnSnapshot | null = null;
   subscribedListener: (() => void) | null = null;
   cleanup = vi.fn();
   rootAvailable = true;
 
   detectModel() {
-    return { label: this.model, observed: true };
+    return { label: this.model, observed: this.modelObserved };
   }
   findConversationRoot() {
     return this.rootAvailable ? this.root : null;
   }
   readLatestTurn() {
-    return this.snapshot;
+    this.lastTurnSnapshot = this.snapshot ? { ...this.snapshot } : null;
+    return this.lastTurnSnapshot;
   }
   readVisibleContext() {
-    return { text: "", coverage: "complete" as const };
+    this.contextReadCount += 1;
+    return this.contextSnapshot;
   }
   getConversationMarker() {
     return this.marker;
@@ -65,6 +77,8 @@ function requireSnapshot(adapter: FakeAdapter): VisibleTurnSnapshot {
 function createHarness(adapter = new FakeAdapter()) {
   const messages: unknown[] = [];
   let runtimeListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
+  const local = new MemoryStorageArea();
+  const session = new MemoryStorageArea();
   const api: BrowserApi = {
     runtime: {
       async sendMessage(message) {
@@ -79,7 +93,7 @@ function createHarness(adapter = new FakeAdapter()) {
         return () => (runtimeListener = null);
       },
     },
-    storage: { local: new MemoryStorageArea(), session: new MemoryStorageArea() },
+    storage: { local, session },
   };
   const updates: WidgetViewModel[] = [];
   const widget = Object.assign(document.createElement("div"), {
@@ -103,8 +117,26 @@ function createHarness(adapter = new FakeAdapter()) {
     messages,
     updates,
     widget,
+    local,
+    session,
     getRuntimeListener: () => runtimeListener,
   };
+}
+
+function modelSelectionCallback(widget: ContentWidget): (profileId: string | null) => void {
+  const configure = widget.configure as ReturnType<typeof vi.fn>;
+  const configuration = configure.mock.calls[0]?.[0] as
+    | { onModelSelectionChange?: (profileId: string | null) => void }
+    | undefined;
+  if (!configuration?.onModelSelectionChange) throw new Error("MISSING_MODEL_SELECTION_CALLBACK");
+  return configuration.onModelSelectionChange;
+}
+
+function numericMessages(messages: unknown[]): Array<Record<string, unknown>> {
+  return messages.filter(
+    (message): message is Record<string, unknown> =>
+      typeof message === "object" && message !== null && "eventId" in message,
+  );
 }
 
 describe("content controller", () => {
@@ -129,6 +161,177 @@ describe("content controller", () => {
     expect(updates.at(-1)?.state).toBe("streaming");
   });
 
+  it("resolves an observed model automatically and warns only for an unobserved generic model", async () => {
+    const observed = createHarness();
+    await observed.controller.start();
+    expect(observed.updates.at(-1)?.modelControl).toMatchObject({
+      resolution: "automatic",
+      selectedProfileId: null,
+      warning: null,
+      effectiveLabel: "OpenAI GPT-4o",
+    });
+
+    const unobservedAdapter = new FakeAdapter();
+    unobservedAdapter.model = "Modèle non communiqué";
+    unobservedAdapter.modelObserved = false;
+    const unobserved = createHarness(unobservedAdapter);
+    await unobserved.controller.start();
+    expect(numericMessages(unobserved.messages)[0]).toMatchObject({
+      modelProfileId: "openai-generic-v1",
+    });
+    expect(unobserved.updates.at(-1)?.modelControl).toMatchObject({
+      resolution: "generic",
+      warning: "Modèle non communiqué — profil générique utilisé",
+    });
+    expect(unobserved.updates.at(-1)?.diagnostic.model).toBe("generic");
+  });
+
+  it("recalculates the same interaction when a compatible manual profile is selected", async () => {
+    const { controller, messages, updates, widget } = createHarness();
+    await controller.start();
+    modelSelectionCallback(widget)("openai-gpt-4-1-v1");
+    await controller.refresh();
+
+    const [first, second] = numericMessages(messages) as Array<{
+      eventId: string;
+      sequence: number;
+      modelProfileId: string;
+    }>;
+    expect(second?.eventId).toBe(first?.eventId);
+    expect(second?.sequence).toBe((first?.sequence ?? 0) + 1);
+    expect(second?.modelProfileId).toBe("openai-gpt-4-1-v1");
+    expect(updates.at(-1)?.modelControl).toMatchObject({
+      resolution: "manual",
+      selectedProfileId: "openai-gpt-4-1-v1",
+      warning: null,
+    });
+    expect(updates.at(-1)?.diagnostic.model).toBe("manual");
+  });
+
+  it("rejects unknown and incompatible profiles without changing or sending the measurement", async () => {
+    const { controller, messages, updates, widget } = createHarness();
+    await controller.start();
+    const select = modelSelectionCallback(widget);
+    select("openai-gpt-4-1-v1");
+    await controller.refresh();
+    const validMeasurement = structuredClone(updates.at(-1)?.current);
+    const sentAfterValidSelection = numericMessages(messages).length;
+
+    for (const rejectedId of ["anthropic-claude-3-5-v1", "unknown-private-profile"]) {
+      select(rejectedId);
+      await controller.refresh();
+      expect(numericMessages(messages)).toHaveLength(sentAfterValidSelection);
+      expect(updates.at(-1)?.current).toEqual(validMeasurement);
+      expect(updates.at(-1)?.modelControl).toMatchObject({
+        selectedProfileId: "openai-gpt-4-1-v1",
+        selectionError: "Ce modèle n’est pas disponible pour cette plateforme.",
+      });
+      expect(JSON.stringify(updates.at(-1))).not.toContain(rejectedId);
+    }
+  });
+
+  it("reads and erases visible context once per turn anchor and caches only numeric bounds", async () => {
+    const adapter = new FakeAdapter();
+    adapter.contextSnapshot = {
+      text: "Contexte antérieur hautement privé",
+      coverage: "partial",
+    };
+    const { controller, messages, updates } = createHarness(adapter);
+    await controller.start();
+    await controller.refresh();
+
+    expect(adapter.contextReadCount).toBe(1);
+    expect(adapter.contextSnapshot.text).toBe("");
+    expect(adapter.lastTurnSnapshot?.promptText).toBe("");
+    expect(adapter.lastTurnSnapshot?.responseText).toBe("");
+    expect(updates.at(-1)?.context).toMatchObject({ coverage: "partial", hasContext: true });
+    expect(updates.at(-1)?.diagnostic.context).toBe("partial");
+    const serialized = JSON.stringify(messages);
+    expect(serialized).not.toContain("Contexte antérieur hautement privé");
+    expect(serialized).not.toContain(adapter.marker);
+  });
+
+  it("keeps prompt central input and adds visible context only to the shared upper envelope", async () => {
+    const adapter = new FakeAdapter();
+    adapter.contextSnapshot = {
+      text: "ancien contexte visible répété ".repeat(20),
+      coverage: "complete",
+    };
+    const { controller, messages, updates } = createHarness(adapter);
+    const prompt = estimateVisibleTokens("Texte privé du prompt", "openai");
+    await controller.start();
+
+    const event = numericMessages(messages)[0] as {
+      modelProfileId: string;
+      tokens: {
+        input: { low: number; central: number; high: number };
+        output: never;
+        source: "estimated";
+      };
+    };
+    expect(event.tokens.input.central).toBe(prompt.central);
+    expect(event.tokens.input.high).toBeGreaterThan(prompt.high);
+    expect(updates.at(-1)?.current.tokens.input).toEqual(event.tokens.input);
+    expect(updates.at(-1)?.current.impact).toEqual(
+      estimateImpact(event.modelProfileId, event.tokens),
+    );
+  });
+
+  it("resets manual choice and context cache before processing a changed SPA conversation", async () => {
+    const adapter = new FakeAdapter();
+    adapter.contextSnapshot = { text: "Premier contexte", coverage: "complete" };
+    const { controller, local, messages, session, updates, widget } = createHarness(adapter);
+    await controller.start();
+    modelSelectionCallback(widget)("openai-gpt-4-1-v1");
+    await controller.refresh();
+
+    adapter.marker = "conversation-b";
+    adapter.contextSnapshot = { text: "Second contexte", coverage: "complete" };
+    await controller.refresh();
+
+    expect(adapter.contextReadCount).toBe(2);
+    expect(updates.at(-1)?.modelControl.selectedProfileId).toBeNull();
+    expect(updates.at(-1)?.modelControl.resolution).toBe("automatic");
+    expect(JSON.stringify({ local: local.values, session: session.values })).not.toMatch(
+      /openai-gpt-4-1-v1|selectedProfile|manualProfile/i,
+    );
+    expect(JSON.stringify(messages)).not.toContain("conversation-b");
+  });
+
+  it("exposes only structured diagnostics for all response, model and context states", async () => {
+    const adapter = new FakeAdapter();
+    adapter.contextSnapshot = { text: "Contexte visible", coverage: "complete" };
+    const harness = createHarness(adapter);
+    await harness.controller.start();
+    adapter.snapshot = null;
+    await harness.controller.refresh();
+    adapter.snapshot = {
+      turnElement: adapter.turnElement,
+      promptText: "https://private.example/prompt",
+      responseText: "Réponse secrète",
+      phase: "interrupted",
+    };
+    adapter.contextSnapshot = { text: "", coverage: "complete" };
+    await harness.controller.refresh();
+    adapter.rootAvailable = false;
+    await harness.controller.refresh();
+
+    const serializedDiagnostics = JSON.stringify(
+      harness.updates.map(({ diagnostic }) => diagnostic),
+    );
+    expect(serializedDiagnostics).not.toMatch(
+      /private|secret|https?:|conversation-a|uuid-|tabSessionId|generatedAt|timestamp/i,
+    );
+    expect(harness.updates.map((update) => update.diagnostic.response)).toEqual(
+      expect.arrayContaining(["streaming", "waiting", "interrupted"]),
+    );
+    expect(harness.updates.map((update) => update.diagnostic.conversation)).toContain("paused");
+    expect(harness.updates.map((update) => update.diagnostic.context)).toEqual(
+      expect.arrayContaining(["complete", "absent"]),
+    );
+    expect(harness.updates.map((update) => update.diagnostic.model)).toContain("automatic");
+  });
+
   it("toggles the widget only for the exact toolbar message", async () => {
     const { controller, getRuntimeListener, widget } = createHarness();
     await controller.start();
@@ -144,7 +347,7 @@ describe("content controller", () => {
   });
 
   it("reuses the event ID and increments only the numeric sequence during streaming", async () => {
-    const { adapter, controller, messages } = createHarness();
+    const { adapter, controller, messages, updates } = createHarness();
     await controller.start();
     adapter.snapshot = {
       ...requireSnapshot(adapter),
@@ -158,6 +361,7 @@ describe("content controller", () => {
     expect(second.eventId).toBe(first.eventId);
     expect(second.sequence).toBe(first.sequence + 1);
     expect(second.phase).toBe("completed");
+    expect(updates.at(-1)?.diagnostic.response).toBe("complete");
   });
 
   it("resets the ephemeral session on SPA conversation change", async () => {

@@ -2,6 +2,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { DataQualityDisclosure } from "../../src/impact/impact-disclosure";
 import type { ImpactEstimate } from "../../src/impact/profile-types";
 import { createRange } from "../../src/shared/range";
 import {
@@ -27,10 +28,83 @@ const impact: ImpactEstimate = {
   methodologyVersion: "test-methodology",
 };
 
+const disclosure: DataQualityDisclosure = {
+  overallGrade: "D",
+  overallLabel: "Qualité des données · D",
+  overallExplanation: "D — proxy générique avec forte incertitude",
+  indicators: [
+    {
+      key: "energy",
+      label: "Électricité",
+      grade: "B",
+      explanation: "B — donnée publiée avec adaptation limitée",
+      sourceId: "source-shared",
+    },
+    {
+      key: "water",
+      label: "Eau",
+      grade: "C",
+      explanation: "C — estimation modélisée à partir de données publiées",
+      sourceId: "source-shared",
+    },
+    {
+      key: "carbon",
+      label: "Carbone",
+      grade: "D",
+      explanation: "D — proxy générique avec forte incertitude",
+      sourceId: "source-carbon",
+    },
+  ],
+  sources: [
+    {
+      id: "source-shared",
+      title: "Étude eau et énergie",
+      url: "https://example.test/shared",
+      publicationDate: "2025-01-02",
+      scope: "Inférence en centre de données",
+      primaryLimitation: "Matériel non détaillé",
+    },
+    {
+      id: "source-carbon",
+      title: "Étude carbone",
+      url: "https://example.test/carbon",
+      publicationDate: "2024-05-06",
+      scope: "Mix électrique européen",
+      primaryLimitation: "Variations régionales",
+    },
+  ],
+  limitations: ["Estimation par proxy", "Contexte fournisseur inconnu"],
+};
+
 const viewModel: WidgetViewModel = {
   platform: "chatgpt",
-  model: "GPT-4o",
   state: "completed",
+  modelControl: {
+    detectedLabel: "GPT-4o détecté",
+    effectiveLabel: "GPT-4o",
+    resolution: "manual",
+    selectedProfileId: "openai-gpt-4o-v1",
+    options: [
+      { id: "openai-gpt-4o-v1", label: "GPT-4o", isGeneric: false },
+      { id: "openai-gpt-4-1-v1", label: "GPT-4.1", isGeneric: false },
+      { id: "openai-generic-v1", label: "OpenAI générique", isGeneric: true },
+    ],
+    warning: null,
+    selectionError: null,
+  },
+  context: {
+    tokens: createRange(120, 180, 240),
+    coverage: "partial",
+    hasContext: true,
+  },
+  disclosure,
+  diagnostic: {
+    platform: "recognized",
+    conversation: "detected",
+    model: "manual",
+    context: "partial",
+    response: "complete",
+  },
   current: {
     tokens: {
       input: createRange(90, 100, 110),
@@ -85,10 +159,167 @@ describe("ecoIA widget", () => {
 
   it("writes untrusted model labels as text, never markup", () => {
     const widget = createWidget();
-    widget.update({ ...viewModel, model: '<img src=x onerror="alert(1)">' });
+    widget.update({
+      ...viewModel,
+      modelControl: {
+        ...viewModel.modelControl,
+        detectedLabel: '<svg onload="alert(1)">',
+        effectiveLabel: '<img src=x onerror="alert(1)">',
+        options: [
+          {
+            id: "openai-gpt-4o-v1",
+            label: '<script type="text/javascript">alert(1)</script>',
+            isGeneric: false,
+          },
+        ],
+      },
+    });
     expect(widget.shadowRoot?.querySelector("img")).toBeNull();
+    expect(widget.shadowRoot?.querySelector("svg, script")).toBeNull();
     expect(widget.shadowRoot?.querySelector("[data-model]")?.textContent).toBe(
       '<img src=x onerror="alert(1)">',
+    );
+    expect(widget.shadowRoot?.querySelector("[data-detected-model]")?.textContent).toContain(
+      '<svg onload="alert(1)">',
+    );
+    expect(
+      widget.shadowRoot?.querySelector<HTMLOptionElement>('option[value="openai-gpt-4o-v1"]')
+        ?.textContent,
+    ).toBe('<script type="text/javascript">alert(1)</script>');
+  });
+
+  it("always exposes a native model selector with automatic and compatible options", () => {
+    const widget = createWidget();
+    widget.update(viewModel);
+    const details = widget.shadowRoot?.querySelector("details");
+    const select = widget.shadowRoot?.querySelector<HTMLSelectElement>("[data-model-select]");
+    expect(details?.contains(select ?? null)).toBe(true);
+    expect(select?.labels[0]?.textContent).toContain("Modèle appliqué");
+    expect(
+      [...(select?.options ?? [])].map(({ value, textContent }) => [value, textContent]),
+    ).toEqual([
+      ["", "Détection automatique"],
+      ["openai-gpt-4o-v1", "GPT-4o"],
+      ["openai-gpt-4-1-v1", "GPT-4.1"],
+      ["openai-generic-v1", "OpenAI générique — forte incertitude"],
+    ]);
+    expect(select?.value).toBe("openai-gpt-4o-v1");
+  });
+
+  it("opens details and focuses the selector from the missing-model alert", () => {
+    const widget = createWidget();
+    widget.update({
+      ...viewModel,
+      modelControl: {
+        ...viewModel.modelControl,
+        resolution: "generic",
+        selectedProfileId: null,
+        warning: "Modèle non communiqué — profil générique utilisé",
+      },
+    });
+    const warning = widget.shadowRoot?.querySelector<HTMLElement>("[data-model-warning]");
+    expect(warning?.textContent).toContain("Modèle non communiqué — profil générique utilisé");
+    expect(warning?.textContent).toContain("Attention");
+    widget.shadowRoot?.querySelector<HTMLButtonElement>("[data-choose-model]")?.click();
+    expect(widget.shadowRoot?.querySelector("details")?.open).toBe(true);
+    expect(widget.shadowRoot?.activeElement).toBe(
+      widget.shadowRoot?.querySelector("[data-model-select]"),
+    );
+  });
+
+  it("shows no missing-model alert when the model is observed", () => {
+    const widget = createWidget();
+    widget.update(viewModel);
+    expect(widget.shadowRoot?.querySelector("[data-model-warning]")?.hasAttribute("hidden")).toBe(
+      true,
+    );
+  });
+
+  it("emits only allowlisted profile IDs or null for automatic mode", () => {
+    const onModelSelectionChange = vi.fn();
+    const widget = createWidget();
+    widget.configure({ onModelSelectionChange });
+    widget.update(viewModel);
+    const select = widget.shadowRoot?.querySelector<HTMLSelectElement>("[data-model-select]");
+    if (!select) throw new Error("MISSING_MODEL_SELECT");
+
+    const injectedOption = document.createElement("option");
+    injectedOption.value = "injected-profile";
+    select.append(injectedOption);
+    select.value = "injected-profile";
+    select.dispatchEvent(new Event("change"));
+    expect(onModelSelectionChange).not.toHaveBeenCalled();
+
+    select.value = "openai-gpt-4-1-v1";
+    select.dispatchEvent(new Event("change"));
+    select.value = "";
+    select.dispatchEvent(new Event("change"));
+    expect(onModelSelectionChange.mock.calls).toEqual([["openai-gpt-4-1-v1"], [null]]);
+  });
+
+  it("preserves model option nodes while the platform/profile signature is unchanged", () => {
+    const widget = createWidget();
+    widget.update(viewModel);
+    const before = [
+      ...(widget.shadowRoot?.querySelectorAll<HTMLOptionElement>("[data-model-select] option") ??
+        []),
+    ];
+
+    widget.update({
+      ...viewModel,
+      state: "streaming",
+      current: {
+        ...viewModel.current,
+        tokens: { ...viewModel.current.tokens, output: createRange(280, 300, 320) },
+      },
+    });
+
+    const after = [
+      ...(widget.shadowRoot?.querySelectorAll<HTMLOptionElement>("[data-model-select] option") ??
+        []),
+    ];
+    expect(after).toEqual(before);
+  });
+
+  it("renders context bounds, quality evidence, limitations and five diagnostic rows", () => {
+    const widget = createWidget();
+    widget.update(viewModel);
+    const shadow = widget.shadowRoot;
+    expect(shadow?.querySelector("[data-context]")?.textContent).toBe(
+      "Contexte visible : jusqu’à ≈ 240 tokens supplémentaires",
+    );
+    expect(shadow?.querySelector("[data-context-explanation]")?.textContent).toContain(
+      "tours les plus anciens ont été exclus",
+    );
+    expect(shadow?.querySelector("[data-context-explanation]")?.textContent).toContain(
+      "tronquer, résumer, mettre en cache ou enrichir",
+    );
+    expect(shadow?.querySelector("[data-quality-overall]")?.textContent).toBe(
+      "Qualité des données · D",
+    );
+    expect(shadow?.querySelectorAll("[data-quality-indicator]")).toHaveLength(3);
+    expect(
+      [...(shadow?.querySelectorAll("[data-quality-indicator]") ?? [])].map(
+        (indicator) => indicator.textContent,
+      ),
+    ).toEqual([
+      "Électricité · B · B — donnée publiée avec adaptation limitée",
+      "Eau · C · C — estimation modélisée à partir de données publiées",
+      "Carbone · D · D — proxy générique avec forte incertitude",
+    ]);
+    expect(shadow?.querySelectorAll("[data-disclosure-source]")).toHaveLength(2);
+    expect(shadow?.querySelectorAll("[data-disclosure-source] a")).toHaveLength(2);
+    for (const link of shadow?.querySelectorAll("[data-disclosure-source] a") ?? []) {
+      expect(link.getAttribute("target")).toBe("_blank");
+      expect(link.getAttribute("rel")).toBe("noopener noreferrer");
+      expect(link.textContent).toContain("Ouvrir la source");
+    }
+    expect(shadow?.querySelector("[data-disclosure-limitations]")?.textContent).toContain(
+      "Contexte fournisseur inconnu",
+    );
+    expect(shadow?.querySelectorAll("[data-diagnostic-row]")).toHaveLength(5);
+    expect(shadow?.querySelector("[data-diagnostics]")?.textContent).toContain(
+      "Contexte · Partiel",
     );
   });
 
@@ -103,8 +334,10 @@ describe("ecoIA widget", () => {
     );
     expect(widget.shadowRoot?.querySelector("[data-water]")?.textContent).toBe("≈ 2 ml");
     expect(widget.shadowRoot?.querySelector("[data-water-range]")?.textContent).toBe("de 1 à 3 ml");
-    expect(widget.shadowRoot?.querySelector("[data-confidence]")?.textContent).toContain("C");
-    expect(widget.shadowRoot?.textContent).not.toMatch(/[–—]/u);
+    expect(widget.shadowRoot?.querySelector("[data-quality-overall]")?.textContent).toContain("D");
+    expect(widget.shadowRoot?.querySelector("[data-input-token-range]")?.textContent).not.toMatch(
+      /[–—]/u,
+    );
   });
 
   it("toggles and persists an explicit light/dark theme", () => {
@@ -146,13 +379,69 @@ describe("ecoIA widget", () => {
 
   it("gives every interactive control an accessible name and visible focus styling", () => {
     const widget = createWidget();
-    const controls = widget.shadowRoot?.querySelectorAll<HTMLElement>("button, summary, a") ?? [];
+    widget.update(viewModel);
+    const controls =
+      widget.shadowRoot?.querySelectorAll<HTMLElement>("button, summary, select, a") ?? [];
     expect(controls.length).toBeGreaterThan(5);
     for (const control of controls) {
       const name = control.getAttribute("aria-label") ?? control.textContent?.trim();
       expect(name).toBeTruthy();
     }
     expect(widget.shadowRoot?.querySelector("style")?.textContent).toContain(":focus-visible");
+    expect(widget.shadowRoot?.querySelector("style")?.textContent).toMatch(/select:focus-visible/);
+    expect(
+      widget.shadowRoot?.querySelector("[data-selection-error]")?.getAttribute("aria-live"),
+    ).toBe("polite");
+  });
+
+  it("keeps warning, details, selector and source actions in logical keyboard order", () => {
+    const widget = createWidget();
+    widget.update({
+      ...viewModel,
+      modelControl: {
+        ...viewModel.modelControl,
+        warning: "Modèle non communiqué — profil générique utilisé",
+      },
+    });
+    const shadow = widget.shadowRoot;
+    const interactive = [...(shadow?.querySelectorAll("button, summary, select, a") ?? [])];
+    const warningIndex = interactive.indexOf(
+      shadow?.querySelector("[data-choose-model]") as Element,
+    );
+    const summaryIndex = interactive.indexOf(shadow?.querySelector("summary") as Element);
+    const selectIndex = interactive.indexOf(
+      shadow?.querySelector("[data-model-select]") as Element,
+    );
+    const sourceIndex = interactive.indexOf(
+      shadow?.querySelector("[data-disclosure-source] a") as Element,
+    );
+    expect(warningIndex).toBeGreaterThanOrEqual(0);
+    expect(summaryIndex).toBeGreaterThan(warningIndex);
+    expect(selectIndex).toBeGreaterThan(summaryIndex);
+    expect(sourceIndex).toBeGreaterThan(selectIndex);
+  });
+
+  it("announces selection errors without reflecting an unavailable profile ID", () => {
+    const widget = createWidget();
+    widget.update({
+      ...viewModel,
+      modelControl: {
+        ...viewModel.modelControl,
+        selectionError: "Ce modèle n’est pas disponible pour cette plateforme.",
+      },
+    });
+    const error = widget.shadowRoot?.querySelector("[data-selection-error]");
+    expect(error?.textContent).toBe("Ce modèle n’est pas disponible pour cette plateforme.");
+    expect(error?.getAttribute("aria-live")).toBe("polite");
+  });
+
+  it("defines non-color warnings, contrast-aware theme tokens and reduced motion", () => {
+    const widget = createWidget();
+    const styles = widget.shadowRoot?.querySelector("style")?.textContent ?? "";
+    expect(styles).toContain("--warning-text:");
+    expect(styles).toMatch(/data-theme="dark"[\s\S]*--warning-text:/);
+    expect(styles).toContain(".warning-label");
+    expect(styles).toContain("prefers-reduced-motion: reduce");
   });
 
   it("announces only a newly completed response", () => {

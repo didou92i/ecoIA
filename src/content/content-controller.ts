@@ -1,14 +1,20 @@
 import type { PlatformAdapter, VisibleTurnSnapshot } from "../adapters/adapter-contract";
 import type { BrowserApi } from "../browser/browser-api";
+import { buildImpactDisclosure } from "../impact/impact-disclosure";
 import { estimateImpact } from "../impact/impact-engine";
-import { resolveImpactProfileId } from "../impact/profile-registry";
+import {
+  getModelProfileOptions,
+  resolveModelProfile,
+  type ModelResolution,
+} from "../impact/model-selection";
 import type { NumericInteractionEvent, PlatformId } from "../shared/contracts";
 import { createRange } from "../shared/range";
 import { isNumericAggregate } from "../storage/aggregate-store";
 import type { NumericAggregate } from "../storage/storage-types";
+import { createInputEnvelope, type ContextTokenEstimate } from "../token/context-envelope";
 import { estimateVisibleTokens, type TokenizerFamily } from "../token/token-estimator";
 import type { WidgetPreferences } from "../widget/widget-controller";
-import type { WidgetViewModel } from "../widget/eco-widget";
+import type { WidgetConfiguration, WidgetViewModel } from "../widget/eco-widget";
 import { conversationChanged, createEphemeralSessionId } from "./page-lifecycle";
 
 const preferencesStorageKey = "ecoia.preferences.v1";
@@ -20,10 +26,7 @@ interface TurnState {
 }
 
 export interface ContentWidget extends HTMLElement {
-  configure(configuration: {
-    preferences?: Partial<WidgetPreferences>;
-    onPreferencesChange?: (preferences: WidgetPreferences) => void;
-  }): void;
+  configure(configuration: WidgetConfiguration): void;
   update(viewModel: WidgetViewModel): void;
   toggleCollapsed(): void;
   disconnectEcoIaWidget?(): void;
@@ -52,10 +55,29 @@ function tokenizerFamily(platform: PlatformId): TokenizerFamily {
 
 function emptyViewModel(platform: PlatformId): WidgetViewModel {
   const zero = createRange(0, 0, 0);
+  const detected = { label: "Modèle non communiqué", observed: false };
+  const resolution = resolveModelProfile({ platform, detected, manualProfileId: null });
   return {
     platform,
-    model: "Modèle non communiqué",
     state: "initializing",
+    modelControl: {
+      detectedLabel: detected.label,
+      effectiveLabel: resolution.effectiveLabel,
+      resolution: resolution.source,
+      selectedProfileId: null,
+      options: getModelProfileOptions(platform),
+      warning: "Modèle non communiqué — profil générique utilisé",
+      selectionError: null,
+    },
+    context: { tokens: zero, coverage: "none", hasContext: false },
+    disclosure: null,
+    diagnostic: {
+      platform: "recognized",
+      conversation: "detected",
+      model: resolution.source,
+      context: "absent",
+      response: "waiting",
+    },
     current: {
       tokens: { input: zero, output: zero, source: "estimated" },
       impact: null,
@@ -114,6 +136,9 @@ export class ContentController {
   private tabSessionId: string;
   private conversationMarker: string | null = null;
   private turnStates = new WeakMap<Element, TurnState>();
+  private manualProfileId: string | null = null;
+  private contextEstimates = new WeakMap<Element, ContextTokenEstimate>();
+  private selectionError: string | null = null;
   private viewModel: WidgetViewModel;
   private refreshQueue: Promise<void> = Promise.resolve();
 
@@ -140,6 +165,7 @@ export class ContentController {
           .set({ [preferencesStorageKey]: nextPreferences })
           .catch(() => undefined);
       },
+      onModelSelectionChange: (profileId) => this.handleModelSelectionChange(profileId),
     });
     this.document.documentElement.append(this.widget);
     this.unsubscribeRuntime = this.api.runtime.onMessage((message, _sender, sendResponse) => {
@@ -181,6 +207,14 @@ export class ContentController {
       ...this.viewModel,
       state: "measurement-paused",
       current: emptyViewModel(this.adapter.platform).current,
+      context: emptyViewModel(this.adapter.platform).context,
+      disclosure: null,
+      diagnostic: {
+        ...this.viewModel.diagnostic,
+        conversation: "paused",
+        context: "absent",
+        response: "waiting",
+      },
     };
     this.widget?.update(this.viewModel);
   }
@@ -205,15 +239,36 @@ export class ContentController {
 
   private async resetConversation(nextMarker: string | null): Promise<void> {
     const previousSessionId = this.tabSessionId;
+    this.manualProfileId = null;
+    this.selectionError = null;
+    this.contextEstimates = new WeakMap<Element, ContextTokenEstimate>();
+    this.turnStates = new WeakMap<Element, TurnState>();
+    this.conversationMarker = nextMarker;
+    this.viewModel = { ...this.viewModel, session: null };
     await this.api.runtime.sendMessage({
       version: 1,
       kind: "reset-session",
       tabSessionId: previousSessionId,
     });
     this.tabSessionId = createEphemeralSessionId(this.randomUUID);
-    this.turnStates = new WeakMap<Element, TurnState>();
-    this.conversationMarker = nextMarker;
-    this.viewModel = { ...this.viewModel, session: null };
+  }
+
+  private handleModelSelectionChange(profileId: string | null): void {
+    const allowedProfileIds = new Set(
+      getModelProfileOptions(this.adapter.platform).map((option) => option.id),
+    );
+    if (profileId !== null && !allowedProfileIds.has(profileId)) {
+      this.selectionError = "Ce modèle n’est pas disponible pour cette plateforme.";
+      this.viewModel = {
+        ...this.viewModel,
+        modelControl: { ...this.viewModel.modelControl, selectionError: this.selectionError },
+      };
+      this.widget?.update(this.viewModel);
+      return;
+    }
+    this.manualProfileId = profileId;
+    this.selectionError = null;
+    void this.refresh();
   }
 
   private async refreshInternal(): Promise<void> {
@@ -228,6 +283,14 @@ export class ContentController {
         ...this.viewModel,
         state: "measurement-paused",
         current: emptyViewModel(this.adapter.platform).current,
+        context: emptyViewModel(this.adapter.platform).context,
+        disclosure: null,
+        diagnostic: {
+          ...this.viewModel.diagnostic,
+          conversation: "paused",
+          context: "absent",
+          response: "waiting",
+        },
       };
       widget.update(this.viewModel);
       return;
@@ -240,30 +303,93 @@ export class ContentController {
       this.conversationMarker = nextMarker;
     }
 
+    const detected = this.adapter.detectModel(root);
+    const resolution = resolveModelProfile({
+      platform: this.adapter.platform,
+      detected,
+      manualProfileId: this.manualProfileId,
+    });
     const snapshot = this.adapter.readLatestTurn(root);
-    const model = this.adapter.detectModel(root).label;
     if (!snapshot) {
-      this.viewModel = { ...this.viewModel, model, state: "active" };
+      this.viewModel = {
+        ...this.viewModel,
+        state: "active",
+        modelControl: this.createModelControl(resolution),
+        context: emptyViewModel(this.adapter.platform).context,
+        diagnostic: {
+          platform: "recognized",
+          conversation: "detected",
+          model: resolution.source,
+          context: "absent",
+          response: "waiting",
+        },
+      };
       widget.update(this.viewModel);
       return;
     }
-    await this.processSnapshot(snapshot, model, widget);
+    await this.processSnapshot(root, snapshot, detected, widget);
+  }
+
+  private createModelControl(resolution: ModelResolution): WidgetViewModel["modelControl"] {
+    return {
+      detectedLabel: resolution.detectedLabel,
+      effectiveLabel: resolution.effectiveLabel,
+      resolution: resolution.source,
+      selectedProfileId: this.manualProfileId,
+      options: getModelProfileOptions(this.adapter.platform),
+      warning:
+        !resolution.modelObserved && resolution.source === "generic"
+          ? "Modèle non communiqué — profil générique utilisé"
+          : null,
+      selectionError: this.selectionError,
+    };
+  }
+
+  private readContextEstimate(
+    root: HTMLElement,
+    turnElement: Element,
+    family: TokenizerFamily,
+  ): ContextTokenEstimate {
+    const cached = this.contextEstimates.get(turnElement);
+    if (cached) return cached;
+    const snapshot = this.adapter.readVisibleContext(root, turnElement);
+    let estimate: ContextTokenEstimate;
+    try {
+      const hasContext = snapshot.text.trim().length > 0;
+      estimate = {
+        tokens: hasContext ? estimateVisibleTokens(snapshot.text, family) : createRange(0, 0, 0),
+        coverage: hasContext ? snapshot.coverage : "none",
+        hasContext,
+      };
+    } finally {
+      snapshot.text = "";
+    }
+    this.contextEstimates.set(turnElement, estimate);
+    return estimate;
   }
 
   private async processSnapshot(
+    root: HTMLElement,
     snapshot: VisibleTurnSnapshot,
-    model: string,
+    detected: ReturnType<PlatformAdapter["detectModel"]>,
     widget: ContentWidget,
   ): Promise<void> {
     try {
       const family = tokenizerFamily(this.adapter.platform);
-      const input = estimateVisibleTokens(snapshot.promptText, family);
+      const prompt = estimateVisibleTokens(snapshot.promptText, family);
       const output = estimateVisibleTokens(snapshot.responseText, family);
+      const context = this.readContextEstimate(root, snapshot.turnElement, family);
+      const input = createInputEnvelope(prompt, context);
       snapshot.promptText = "";
       snapshot.responseText = "";
-      const profileId = resolveImpactProfileId(this.adapter.platform, model);
+      const resolution = resolveModelProfile({
+        platform: this.adapter.platform,
+        detected,
+        manualProfileId: this.manualProfileId,
+      });
       const tokens = { input, output, source: "estimated" as const };
-      const impact = estimateImpact(profileId, tokens);
+      const impact = estimateImpact(resolution.profileId, tokens);
+      const disclosure = buildImpactDisclosure(impact);
       const previousState = this.turnStates.get(snapshot.turnElement);
       const sequence = (previousState?.sequence ?? 0) + 1;
       const event: NumericInteractionEvent = {
@@ -272,7 +398,7 @@ export class ContentController {
         tabSessionId: this.tabSessionId,
         sequence,
         platform: this.adapter.platform,
-        modelProfileId: profileId,
+        modelProfileId: resolution.profileId,
         phase: snapshot.phase,
         tokens,
         generatedAt: this.now(),
@@ -280,8 +406,26 @@ export class ContentController {
       const signature = numericSignature(event);
       this.viewModel = {
         ...this.viewModel,
-        model,
         state: snapshot.phase === "streaming" ? "streaming" : "completed",
+        modelControl: this.createModelControl(resolution),
+        context,
+        disclosure,
+        diagnostic: {
+          platform: "recognized",
+          conversation: "detected",
+          model: resolution.source,
+          context: context.hasContext
+            ? context.coverage === "partial"
+              ? "partial"
+              : "complete"
+            : "absent",
+          response:
+            snapshot.phase === "streaming"
+              ? "streaming"
+              : snapshot.phase === "completed"
+                ? "complete"
+                : "interrupted",
+        },
         current: { tokens, impact },
       };
       widget.update(this.viewModel);

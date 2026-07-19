@@ -1,4 +1,6 @@
 import type { WidgetElements } from "./widget-template";
+import type { ModelProfileOption } from "../impact/model-selection";
+import type { PlatformId } from "../shared/contracts";
 
 export type WidgetTheme = "light" | "dark" | "system";
 export type WidgetSide = "left" | "right";
@@ -13,6 +15,7 @@ export interface WidgetPreferences {
 interface WidgetControllerOptions {
   preferences?: Partial<WidgetPreferences>;
   onPreferencesChange?: (preferences: WidgetPreferences) => void;
+  onModelSelectionChange?: (profileId: string | null) => void;
 }
 
 const defaultPreferences: WidgetPreferences = {
@@ -31,6 +34,9 @@ export function clampWidgetTop(top: number, viewportHeight: number, collapsed: b
 export class WidgetController {
   private preferences: WidgetPreferences = { ...defaultPreferences };
   private onPreferencesChange: (preferences: WidgetPreferences) => void = () => undefined;
+  private onModelSelectionChange: (profileId: string | null) => void = () => undefined;
+  private allowedProfileIds = new Set<string>();
+  private modelOptionsSignature = "";
   private readonly cleanupCallbacks: Array<() => void> = [];
   private dragState: { pointerId: number; offsetX: number; offsetY: number } | null = null;
 
@@ -45,6 +51,9 @@ export class WidgetController {
 
   configure(options: WidgetControllerOptions): void {
     if (options.onPreferencesChange) this.onPreferencesChange = options.onPreferencesChange;
+    if (options.onModelSelectionChange) {
+      this.onModelSelectionChange = options.onModelSelectionChange;
+    }
     if (options.preferences) {
       this.preferences = { ...this.preferences, ...options.preferences };
     }
@@ -58,6 +67,33 @@ export class WidgetController {
   toggleCollapsed(): void {
     this.preferences.collapsed = !this.preferences.collapsed;
     this.applyPreferences();
+  }
+
+  updateModelControl(
+    platform: PlatformId,
+    options: ModelProfileOption[],
+    selectedProfileId: string | null,
+  ): void {
+    this.allowedProfileIds = new Set(options.map((option) => option.id));
+    const signature = `${platform}:${options
+      .map((option) => `${option.id}:${option.label}:${option.isGeneric ? "generic" : "specific"}`)
+      .join("|")}`;
+    if (signature !== this.modelOptionsSignature) {
+      const automatic = document.createElement("option");
+      automatic.value = "";
+      automatic.textContent = "Détection automatique";
+      const optionElements = options.map((option) => {
+        const element = document.createElement("option");
+        element.value = option.id;
+        element.textContent = option.isGeneric
+          ? `${option.label} — forte incertitude`
+          : option.label;
+        return element;
+      });
+      this.elements.modelSelect.replaceChildren(automatic, ...optionElements);
+      this.modelOptionsSignature = signature;
+    }
+    this.elements.modelSelect.value = selectedProfileId ?? "";
   }
 
   private listen(
@@ -84,6 +120,20 @@ export class WidgetController {
     });
     this.listen(this.elements.anchorLeftButton, "click", () => this.setSide("left"));
     this.listen(this.elements.anchorRightButton, "click", () => this.setSide("right"));
+    this.listen(this.elements.chooseModelButton, "click", () => {
+      this.elements.details.open = true;
+      this.elements.modelSelect.focus();
+    });
+    this.listen(this.elements.modelSelect, "change", () => {
+      const requestedProfileId = this.elements.modelSelect.value;
+      if (requestedProfileId === "") {
+        this.onModelSelectionChange(null);
+        return;
+      }
+      if (this.allowedProfileIds.has(requestedProfileId)) {
+        this.onModelSelectionChange(requestedProfileId);
+      }
+    });
     this.listen(this.elements.dragHandle, "pointerdown", (event) =>
       this.startDrag(event as PointerEvent),
     );

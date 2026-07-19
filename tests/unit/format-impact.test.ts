@@ -4,6 +4,7 @@ import { createRange } from "../../src/shared/range";
 import {
   formatCarbon,
   formatCarDistance,
+  formatContextTokenEstimate,
   formatEnergy,
   formatTelevisionTime,
   formatTokenRange,
@@ -16,6 +17,12 @@ describe("impact formatting", () => {
       value: "≈ 16 tokens",
       range: "de 12 à 20 tokens",
     });
+  });
+
+  it("describes visible context as a bounded additional token estimate", () => {
+    expect(formatContextTokenEstimate(createRange(120, 180, 240))).toBe(
+      "Contexte visible : jusqu’à ≈ 240 tokens supplémentaires",
+    );
   });
 
   it("switches water from millilitres to litres", () => {

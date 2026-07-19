@@ -8,6 +8,15 @@ export interface WidgetElements {
   dragHandle: HTMLButtonElement;
   status: HTMLElement;
   model: HTMLElement;
+  modelWarning: HTMLElement;
+  modelWarningText: HTMLElement;
+  chooseModelButton: HTMLButtonElement;
+  details: HTMLDetailsElement;
+  modelSelect: HTMLSelectElement;
+  detectedModel: HTMLElement;
+  selectionError: HTMLElement;
+  context: HTMLElement;
+  contextExplanation: HTMLElement;
   inputTokens: HTMLElement;
   inputTokenRange: HTMLElement;
   outputTokens: HTMLElement;
@@ -24,8 +33,12 @@ export interface WidgetElements {
   energyRange: HTMLElement;
   carbon: HTMLElement;
   carbonRange: HTMLElement;
-  confidence: HTMLElement;
-  sourceLink: HTMLAnchorElement;
+  qualityOverall: HTMLElement;
+  qualityExplanation: HTMLElement;
+  qualityIndicators: HTMLUListElement;
+  sourceList: HTMLUListElement;
+  limitations: HTMLUListElement;
+  diagnostics: HTMLUListElement;
   live: HTMLElement;
 }
 
@@ -103,15 +116,6 @@ function summaryCard(labelText: string, dataAttribute: string): [HTMLElement, HT
   return [card, value];
 }
 
-function detailRow(labelText: string, dataAttribute: string): [HTMLElement, HTMLElement] {
-  const row = element("div", "detail-row");
-  row.append(element("span", undefined, labelText));
-  const value = element("span", undefined, "En attente");
-  value.setAttribute(dataAttribute, "");
-  row.append(value);
-  return [row, value];
-}
-
 function detailEstimateRow(
   labelText: string,
   dataAttribute: string,
@@ -166,6 +170,18 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   model.setAttribute("data-model", "");
   body.append(statusRow, model);
 
+  const modelWarning = element("div", "model-warning");
+  modelWarning.setAttribute("data-model-warning", "");
+  modelWarning.hidden = true;
+  const warningLabel = element("strong", "warning-label", "Attention");
+  const modelWarningText = element("span");
+  modelWarningText.setAttribute("data-model-warning-text", "");
+  const chooseModelButton = element("button", "warning-action", "Choisir le modèle");
+  chooseModelButton.type = "button";
+  chooseModelButton.setAttribute("data-choose-model", "");
+  modelWarning.append(warningLabel, modelWarningText, chooseModelButton);
+  body.append(modelWarning);
+
   body.append(element("h2", "eyebrow", "Tokens visibles"));
   const tokenGrid = element("div", "token-grid");
   const [inputCard, inputTokens, inputTokenRange] = tokenCard(
@@ -204,6 +220,26 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   const details = element("details");
   details.append(element("summary", undefined, "Méthode et détails"));
   const detailsGrid = element("div", "details-grid");
+
+  const modelControl = element("div", "model-control");
+  const modelLabel = element("label", undefined, "Modèle appliqué");
+  const modelSelect = element("select");
+  modelSelect.id = "ecoia-model-profile";
+  modelSelect.setAttribute("data-model-select", "");
+  modelLabel.htmlFor = modelSelect.id;
+  const detectedModel = element("p", "detected-model");
+  detectedModel.setAttribute("data-detected-model", "");
+  const selectionError = element("p", "selection-error");
+  selectionError.setAttribute("data-selection-error", "");
+  selectionError.setAttribute("aria-live", "polite");
+  selectionError.setAttribute("aria-atomic", "true");
+  modelControl.append(modelLabel, modelSelect, detectedModel, selectionError);
+
+  const context = element("p", "context-line");
+  context.setAttribute("data-context", "");
+  context.hidden = true;
+  const contextExplanation = element("p", "explanation");
+  contextExplanation.setAttribute("data-context-explanation", "");
   const [energyRow, energy, energyRange] = detailEstimateRow(
     "Électricité",
     "data-energy",
@@ -214,13 +250,46 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
     "data-carbon",
     "data-carbon-range",
   );
-  const [confidenceRow, confidence] = detailRow("Confiance", "data-confidence");
-  const sourceLink = element("a", "source-link", "Voir la source primaire");
-  sourceLink.hidden = true;
-  sourceLink.target = "_blank";
-  sourceLink.rel = "noopener noreferrer";
-  sourceLink.setAttribute("aria-label", "Ouvrir la source primaire dans un nouvel onglet");
-  detailsGrid.append(energyRow, carbonRow, confidenceRow, sourceLink);
+  const qualitySection = element("section", "disclosure-section");
+  qualitySection.setAttribute("aria-label", "Qualité des données");
+  const qualityOverall = element("h3", "detail-heading", "Qualité des données");
+  qualityOverall.setAttribute("data-quality-overall", "");
+  const qualityExplanation = element("p", "explanation");
+  qualityExplanation.setAttribute("data-quality-explanation", "");
+  const qualityIndicators = element("ul", "compact-list");
+  qualityIndicators.setAttribute("data-quality-indicators", "");
+  const sourceHeading = element("h3", "detail-heading", "Sources");
+  const sourceList = element("ul", "compact-list source-list");
+  sourceList.setAttribute("data-disclosure-sources", "");
+  const limitationHeading = element("h3", "detail-heading", "Limites");
+  const limitations = element("ul", "compact-list");
+  limitations.setAttribute("data-disclosure-limitations", "");
+  qualitySection.append(
+    qualityOverall,
+    qualityExplanation,
+    qualityIndicators,
+    sourceHeading,
+    sourceList,
+    limitationHeading,
+    limitations,
+  );
+
+  const diagnosticSection = element("section", "diagnostic-section");
+  diagnosticSection.setAttribute("aria-label", "Diagnostic local");
+  diagnosticSection.append(element("h3", "detail-heading", "Diagnostic"));
+  const diagnostics = element("ul", "compact-list diagnostic-list");
+  diagnostics.setAttribute("data-diagnostics", "");
+  diagnosticSection.append(diagnostics);
+
+  detailsGrid.append(
+    modelControl,
+    context,
+    contextExplanation,
+    energyRow,
+    carbonRow,
+    qualitySection,
+    diagnosticSection,
+  );
   details.append(detailsGrid);
   body.append(details);
 
@@ -245,6 +314,15 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
     dragHandle,
     status,
     model,
+    modelWarning,
+    modelWarningText,
+    chooseModelButton,
+    details,
+    modelSelect,
+    detectedModel,
+    selectionError,
+    context,
+    contextExplanation,
     inputTokens,
     inputTokenRange,
     outputTokens,
@@ -261,8 +339,12 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
     energyRange,
     carbon,
     carbonRange,
-    confidence,
-    sourceLink,
+    qualityOverall,
+    qualityExplanation,
+    qualityIndicators,
+    sourceList,
+    limitations,
+    diagnostics,
     live,
   };
 }

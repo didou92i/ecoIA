@@ -110,4 +110,29 @@ describe("service worker message boundary", () => {
     expect(response).toEqual({ ok: false, error: "INVALID_MESSAGE" });
     expect(JSON.stringify(response)).not.toContain("private prompt content");
   });
+
+  it("rejects diagnostic metadata at the numeric service-worker boundary", async () => {
+    const { api, getListener } = createApi();
+    registerServiceWorker(api);
+    const listener = getListener();
+    if (!listener) throw new Error("MISSING_MESSAGE_LISTENER");
+    const response = await invoke(listener, {
+      version: 1,
+      eventId: "event-1",
+      tabSessionId: "tab-1",
+      sequence: 1,
+      platform: "chatgpt",
+      modelProfileId: "openai-gpt-4o-v1",
+      phase: "completed",
+      tokens: {
+        input: { low: 9, central: 10, high: 11 },
+        output: { low: 18, central: 20, high: 22 },
+        source: "estimated",
+      },
+      generatedAt: 1_721_318_400_000,
+      diagnostic: { pageUrl: "https://private.example" },
+    });
+    expect(response).toEqual({ ok: false, error: "INVALID_MESSAGE" });
+    expect(JSON.stringify(response)).not.toContain("private.example");
+  });
 });

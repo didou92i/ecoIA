@@ -48,6 +48,10 @@ export function formatTokenRange(range: EstimateRange): FormattedEstimate {
   );
 }
 
+export function formatContextTokenEstimate(range: EstimateRange): string {
+  return `Contexte visible : jusqu’à ≈ ${formatNumber(Math.round(range.high), 0)} tokens supplémentaires`;
+}
+
 export function formatWater(range: EstimateRange): FormattedEstimate {
   if (range.high >= 1_000) {
     return formatEstimate(scaleRange(range, 1_000), 2, "L");

@@ -95,6 +95,21 @@ describe("aggregate store", () => {
     expect(day.tokens.output.central).toBe(240);
   });
 
+  it("replaces one interaction when a manual model recalculation changes its profile", async () => {
+    const { store } = createStore();
+    const automatic = event("event-1", "tab-1", 1, 100);
+    const manual = {
+      ...event("event-1", "tab-1", 2, 100, "chatgpt", "streaming"),
+      modelProfileId: "openai-gpt-4-1-v1",
+    };
+    await store.processEvent(automatic);
+    await store.processEvent(manual);
+
+    const day = await store.getDayAggregate();
+    expect(day.interactionCount).toBe(1);
+    expect(day.tokens.output.central).toBe(100);
+  });
+
   it("ignores duplicates and out-of-order events", async () => {
     const { store } = createStore();
     await store.processEvent(event("event-1", "tab-1", 2, 200));
