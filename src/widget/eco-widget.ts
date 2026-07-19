@@ -9,6 +9,7 @@ import {
   formatTelevisionTime,
   formatTokenRange,
   formatWater,
+  type FormattedEstimate,
 } from "./format-impact";
 import { WidgetController, type WidgetPreferences } from "./widget-controller";
 import { widgetStyles } from "./widget-styles";
@@ -49,11 +50,21 @@ const stateLabels: Record<WidgetMeasurementState, string> = {
   "measurement-paused": "Mesure en pause",
   unsupported: "Plateforme non prise en charge",
 };
+const streamingRenderIntervalMs = 525;
 
 function summaryLabel(aggregate: NumericAggregate | null): string {
   if (!aggregate || aggregate.interactionCount === 0) return "Aucune donnée";
   const interactionLabel = aggregate.interactionCount > 1 ? "interactions" : "interaction";
-  return `${aggregate.interactionCount} ${interactionLabel} · ${formatWater(aggregate.impacts.waterMl)}`;
+  return `${aggregate.interactionCount} ${interactionLabel} · ${formatWater(aggregate.impacts.waterMl).value}`;
+}
+
+function renderEstimate(
+  valueElement: HTMLElement,
+  rangeElement: HTMLElement,
+  estimate: FormattedEstimate,
+): void {
+  valueElement.textContent = estimate.value;
+  rangeElement.textContent = estimate.range;
 }
 
 class EcoIaWidgetRuntime {
@@ -100,7 +111,7 @@ class EcoIaWidgetRuntime {
 
   update(viewModel: WidgetViewModel): void {
     const now = performance.now();
-    const remainingDelay = 500 - (now - this.lastRenderAt);
+    const remainingDelay = streamingRenderIntervalMs - (now - this.lastRenderAt);
     if (viewModel.state === "streaming" && this.lastRenderAt > 0 && remainingDelay > 0) {
       this.pendingViewModel = viewModel;
       if (this.pendingRender === null) {
@@ -122,19 +133,47 @@ class EcoIaWidgetRuntime {
   private render(viewModel: WidgetViewModel): void {
     this.lastRenderAt = performance.now();
     this.elements.status.textContent = stateLabels[viewModel.state];
-    this.elements.model.textContent = viewModel.model || "Modèle non détecté";
-    this.elements.inputTokens.textContent = formatTokenRange(viewModel.current.tokens.input);
-    this.elements.outputTokens.textContent = formatTokenRange(viewModel.current.tokens.output);
+    this.elements.model.textContent = viewModel.model || "Modèle non communiqué";
+    renderEstimate(
+      this.elements.inputTokens,
+      this.elements.inputTokenRange,
+      formatTokenRange(viewModel.current.tokens.input),
+    );
+    renderEstimate(
+      this.elements.outputTokens,
+      this.elements.outputTokenRange,
+      formatTokenRange(viewModel.current.tokens.output),
+    );
     this.elements.session.textContent = summaryLabel(viewModel.session);
     this.elements.day.textContent = summaryLabel(viewModel.day);
 
     const impact = viewModel.current.impact;
     if (impact) {
-      this.elements.water.textContent = formatWater(impact.waterMl.range);
-      this.elements.car.textContent = formatCarDistance(impact.carMeters.range);
-      this.elements.television.textContent = formatTelevisionTime(impact.televisionSeconds.range);
-      this.elements.energy.textContent = formatEnergy(impact.energyWh.range);
-      this.elements.carbon.textContent = formatCarbon(impact.carbonG.range);
+      renderEstimate(
+        this.elements.water,
+        this.elements.waterRange,
+        formatWater(impact.waterMl.range),
+      );
+      renderEstimate(
+        this.elements.car,
+        this.elements.carRange,
+        formatCarDistance(impact.carMeters.range),
+      );
+      renderEstimate(
+        this.elements.television,
+        this.elements.televisionRange,
+        formatTelevisionTime(impact.televisionSeconds.range),
+      );
+      renderEstimate(
+        this.elements.energy,
+        this.elements.energyRange,
+        formatEnergy(impact.energyWh.range),
+      );
+      renderEstimate(
+        this.elements.carbon,
+        this.elements.carbonRange,
+        formatCarbon(impact.carbonG.range),
+      );
       this.elements.confidence.textContent = `Énergie ${impact.energyWh.confidence} · Eau ${impact.waterMl.confidence} · Carbone ${impact.carbonG.confidence}`;
       const source = impactRegistry.sources.find(
         (candidate) => candidate.id === impact.waterMl.sourceId,
@@ -149,13 +188,18 @@ class EcoIaWidgetRuntime {
     } else {
       for (const element of [
         this.elements.water,
+        this.elements.waterRange,
         this.elements.car,
+        this.elements.carRange,
         this.elements.television,
+        this.elements.televisionRange,
         this.elements.energy,
+        this.elements.energyRange,
         this.elements.carbon,
+        this.elements.carbonRange,
         this.elements.confidence,
       ]) {
-        element.textContent = "—";
+        element.textContent = "En attente";
       }
       this.elements.sourceLink.hidden = true;
       this.elements.sourceLink.removeAttribute("href");
@@ -163,7 +207,7 @@ class EcoIaWidgetRuntime {
 
     if (viewModel.state === "completed" && this.previousState !== "completed") {
       this.elements.live.textContent = `Réponse terminée. ${this.elements.water.textContent}, ${this.elements.car.textContent}, ${this.elements.television.textContent}.`;
-    } else {
+    } else if (viewModel.state !== "completed") {
       this.elements.live.textContent = "";
     }
     this.previousState = viewModel.state;

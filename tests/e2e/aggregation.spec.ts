@@ -1,5 +1,26 @@
 import { expect, test } from "./extension.fixture";
 
+test("regroupe les étapes assistant d'une même question en une interaction", async ({
+  extensionPage,
+}) => {
+  const widget = extensionPage.locator("eco-ia-widget");
+  await expect(widget.locator("[data-session]")).toContainText("1 interaction");
+  const previousOutput = await widget.locator("[data-output-tokens]").textContent();
+
+  await extensionPage.evaluate(() => {
+    const conversation = document.querySelector("[data-conversation-id]");
+    const assistant = conversation?.querySelector("[data-message-author-role='assistant']");
+    if (!conversation || !assistant) throw new Error("E2E_ASSISTANT_FIXTURE_MISSING");
+    const intermediateStep = assistant.cloneNode(false) as HTMLElement;
+    intermediateStep.textContent = "Étape intermédiaire supplémentaire du même agent. ".repeat(30);
+    conversation.append(intermediateStep);
+  });
+
+  await expect(widget.locator("[data-output-tokens]")).not.toHaveText(previousOutput ?? "");
+  await expect(widget.locator("[data-session]")).toContainText("1 interaction");
+  await expect(widget.locator("[data-output-tokens]")).toContainText("token");
+});
+
 test("agrège deux onglets sans conserver les textes ni les identifiants de page", async ({
   extensionContext,
   extensionPage,

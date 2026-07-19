@@ -10,6 +10,7 @@ runAdapterContract({
   assistantSelector: "[data-message-author-role='assistant']",
   markerAttribute: "data-conversation-id",
   expectedModel: "GPT-4o",
+  expectedFallbackModel: "ChatGPT · modèle non communiqué",
   expectedPrompt: "Deuxième question synthétique.",
   expectedResponse: "Deuxième réponse synthétique.",
 });

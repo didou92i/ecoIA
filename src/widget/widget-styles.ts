@@ -137,7 +137,22 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
   background: var(--surface-raised);
 }
 .label { display: block; color: var(--text-muted); font-size: 10px; }
-.value { display: block; margin-top: 2px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.estimate-content { min-width: 0; }
+.value {
+  display: block;
+  margin-top: 2px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+.estimate-range {
+  display: block;
+  margin-top: 1px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.25;
+}
 .impact-list { display: grid; gap: 5px; }
 .impact-row {
   display: grid;
@@ -150,14 +165,23 @@ button:focus-visible, summary:focus-visible, a:focus-visible {
 }
 .impact-icon { color: var(--accent); font-size: 15px; text-align: center; }
 .impact-name { color: var(--text-muted); font-size: 10px; }
-.impact-value { display: block; font-weight: 750; font-variant-numeric: tabular-nums; }
+.impact-value {
+  display: block;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 780;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+}
 .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .summary-card .value { font-size: 11px; }
 details { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 7px; }
 summary { min-height: 26px; display: flex; align-items: center; color: var(--text-muted); cursor: pointer; }
 .details-grid { display: grid; gap: 4px; padding: 5px 1px 2px; }
-.detail-row { display: flex; justify-content: space-between; gap: 8px; }
-.detail-row span:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.detail-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.detail-row > .estimate-content { text-align: right; }
+.detail-value { display: block; font-variant-numeric: tabular-nums; }
 .source-link { color: var(--accent); font-weight: 650; text-decoration-thickness: 1px; }
 .source-link[hidden] { display: none; }
 .live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }

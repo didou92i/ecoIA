@@ -6,7 +6,8 @@ de 100 W et distance équivalente en voiture.
 
 Le petit panneau se déplace à gauche ou à droite, se replie en un bouton de 40 px et propose un
 thème clair, sombre ou système. Tout le calcul est local. ecoIA n’est pas un compteur physique : il
-affiche une fourchette transparente avec un niveau de confiance et une source.
+met en avant une estimation centrale, puis écrit la plage possible en toutes lettres avec un niveau
+de confiance et une source.
 
 ## Plateformes et navigateurs
 
@@ -62,6 +63,11 @@ npm run e2e
 Les dossiers chargeables sont créés dans `dist/chromium` et `dist/firefox`. Les archives se trouvent
 dans `dist/packages`.
 
+Après avoir cliqué sur le bouton de rechargement de l’extension dans `chrome://extensions`,
+actualisez aussi chaque onglet ChatGPT, Claude, Gemini, Mistral ou Perplexity déjà ouvert. Chrome
+exécute sinon, jusqu’à l’actualisation de la page, l’ancien script de contenu dont le contexte vient
+d’être invalidé.
+
 ## Utiliser ecoIA
 
 Ouvrez une plateforme prise en charge puis une conversation textuelle. Le panneau apparaît à droite.
@@ -69,8 +75,10 @@ Vous pouvez le déplacer, l’ancrer avec les flèches, le replier ou changer de
 l’icône ecoIA dans la barre du navigateur ouvre ou replie aussi le panneau sur une page prise en
 charge.
 
-Les valeurs sont des ordres de grandeur : la borne basse, la valeur centrale et la borne haute
-reflètent l’incertitude. Les grades A à D décrivent la qualité de provenance, pas la précision de la
+Le signe `≈` désigne l’estimation centrale. La ligne « de … à … » présente la borne basse et la
+borne haute sans les confondre avec une soustraction. Une question et ses éventuels segments de
+réponse visibles comptent comme une seule interaction ; leurs textes visibles sont cumulés pour
+l’estimation. Les grades A à D décrivent la qualité de provenance, pas la précision de la
 conversation courante. Consultez [la méthodologie](METHODOLOGY.md) et
 [la calibration des tokens](docs/token-calibration.md).
 

@@ -9,14 +9,21 @@ export interface WidgetElements {
   status: HTMLElement;
   model: HTMLElement;
   inputTokens: HTMLElement;
+  inputTokenRange: HTMLElement;
   outputTokens: HTMLElement;
+  outputTokenRange: HTMLElement;
   water: HTMLElement;
+  waterRange: HTMLElement;
   car: HTMLElement;
+  carRange: HTMLElement;
   television: HTMLElement;
+  televisionRange: HTMLElement;
   session: HTMLElement;
   day: HTMLElement;
   energy: HTMLElement;
+  energyRange: HTMLElement;
   carbon: HTMLElement;
+  carbonRange: HTMLElement;
   confidence: HTMLElement;
   sourceLink: HTMLAnchorElement;
   live: HTMLElement;
@@ -40,30 +47,51 @@ function iconButton(label: string, glyph: string): HTMLButtonElement {
   return button;
 }
 
-function tokenCard(labelText: string, dataAttribute: string): [HTMLElement, HTMLElement] {
+function estimateContent(
+  valueClassName: string,
+  valueDataAttribute: string,
+  rangeDataAttribute: string,
+): [HTMLElement, HTMLElement, HTMLElement] {
+  const content = element("div", "estimate-content");
+  const value = element("span", valueClassName, "En attente");
+  value.setAttribute(valueDataAttribute, "");
+  const range = element("span", "estimate-range", "Calcul en cours");
+  range.setAttribute(rangeDataAttribute, "");
+  content.append(value, range);
+  return [content, value, range];
+}
+
+function tokenCard(
+  labelText: string,
+  dataAttribute: string,
+  rangeDataAttribute: string,
+): [HTMLElement, HTMLElement, HTMLElement] {
   const card = element("div", "token-card");
   card.append(element("span", "label", labelText));
-  const value = element("span", "value", "0 token");
-  value.setAttribute(dataAttribute, "");
-  card.append(value);
-  return [card, value];
+  const [content, value, range] = estimateContent("value", dataAttribute, rangeDataAttribute);
+  card.append(content);
+  return [card, value, range];
 }
 
 function impactRow(
   glyph: string,
   labelText: string,
   dataAttribute: string,
-): [HTMLElement, HTMLElement] {
+  rangeDataAttribute: string,
+): [HTMLElement, HTMLElement, HTMLElement] {
   const row = element("div", "impact-row");
   const icon = element("span", "impact-icon", glyph);
   icon.setAttribute("aria-hidden", "true");
   const content = element("div");
   content.append(element("span", "impact-name", labelText));
-  const value = element("span", "impact-value", "—");
-  value.setAttribute(dataAttribute, "");
-  content.append(value);
+  const [estimate, value, range] = estimateContent(
+    "impact-value",
+    dataAttribute,
+    rangeDataAttribute,
+  );
+  content.append(estimate);
   row.append(icon, content);
-  return [row, value];
+  return [row, value, range];
 }
 
 function summaryCard(labelText: string, dataAttribute: string): [HTMLElement, HTMLElement] {
@@ -78,10 +106,26 @@ function summaryCard(labelText: string, dataAttribute: string): [HTMLElement, HT
 function detailRow(labelText: string, dataAttribute: string): [HTMLElement, HTMLElement] {
   const row = element("div", "detail-row");
   row.append(element("span", undefined, labelText));
-  const value = element("span", undefined, "—");
+  const value = element("span", undefined, "En attente");
   value.setAttribute(dataAttribute, "");
   row.append(value);
   return [row, value];
+}
+
+function detailEstimateRow(
+  labelText: string,
+  dataAttribute: string,
+  rangeDataAttribute: string,
+): [HTMLElement, HTMLElement, HTMLElement] {
+  const row = element("div", "detail-row");
+  row.append(element("span", undefined, labelText));
+  const [estimate, value, range] = estimateContent(
+    "detail-value",
+    dataAttribute,
+    rangeDataAttribute,
+  );
+  row.append(estimate);
+  return [row, value, range];
 }
 
 export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): WidgetElements {
@@ -99,7 +143,7 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   const headerActions = element("div", "header-actions");
   const themeButton = iconButton("Passer au thème sombre", "◐");
   themeButton.setAttribute("data-theme-toggle", "");
-  const collapseButton = iconButton("Replier ecoIA", "–");
+  const collapseButton = iconButton("Replier ecoIA", "⌄");
   collapseButton.setAttribute("data-collapse", "");
   headerActions.append(themeButton, collapseButton);
   header.append(dragHandle, headerActions);
@@ -118,22 +162,35 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   const status = element("span", undefined, "Initialisation…");
   status.setAttribute("data-status", "");
   statusRow.append(statusDot, status);
-  const model = element("div", "model", "Modèle non détecté");
+  const model = element("div", "model", "Modèle non communiqué");
   model.setAttribute("data-model", "");
   body.append(statusRow, model);
 
   body.append(element("h2", "eyebrow", "Tokens visibles"));
   const tokenGrid = element("div", "token-grid");
-  const [inputCard, inputTokens] = tokenCard("Entrée", "data-input-tokens");
-  const [outputCard, outputTokens] = tokenCard("Sortie", "data-output-tokens");
+  const [inputCard, inputTokens, inputTokenRange] = tokenCard(
+    "Entrée",
+    "data-input-tokens",
+    "data-input-token-range",
+  );
+  const [outputCard, outputTokens, outputTokenRange] = tokenCard(
+    "Sortie",
+    "data-output-tokens",
+    "data-output-token-range",
+  );
   tokenGrid.append(inputCard, outputCard);
   body.append(tokenGrid);
 
-  body.append(element("h2", "eyebrow", "Réponse actuelle"));
+  body.append(element("h2", "eyebrow", "Impact estimé"));
   const impactList = element("div", "impact-list");
-  const [waterRow, water] = impactRow("●", "Eau", "data-water");
-  const [carRow, car] = impactRow("↔", "Distance en voiture", "data-car");
-  const [televisionRow, television] = impactRow("▣", "Télévision 100 W", "data-television");
+  const [waterRow, water, waterRange] = impactRow("●", "Eau", "data-water", "data-water-range");
+  const [carRow, car, carRange] = impactRow("↔", "Voiture", "data-car", "data-car-range");
+  const [televisionRow, television, televisionRange] = impactRow(
+    "▣",
+    "Téléviseur 100 W",
+    "data-television",
+    "data-television-range",
+  );
   impactList.append(waterRow, carRow, televisionRow);
   body.append(impactList);
 
@@ -147,8 +204,16 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   const details = element("details");
   details.append(element("summary", undefined, "Méthode et détails"));
   const detailsGrid = element("div", "details-grid");
-  const [energyRow, energy] = detailRow("Électricité", "data-energy");
-  const [carbonRow, carbon] = detailRow("Carbone", "data-carbon");
+  const [energyRow, energy, energyRange] = detailEstimateRow(
+    "Électricité",
+    "data-energy",
+    "data-energy-range",
+  );
+  const [carbonRow, carbon, carbonRange] = detailEstimateRow(
+    "Carbone",
+    "data-carbon",
+    "data-carbon-range",
+  );
   const [confidenceRow, confidence] = detailRow("Confiance", "data-confidence");
   const sourceLink = element("a", "source-link", "Voir la source primaire");
   sourceLink.hidden = true;
@@ -181,14 +246,21 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
     status,
     model,
     inputTokens,
+    inputTokenRange,
     outputTokens,
+    outputTokenRange,
     water,
+    waterRange,
     car,
+    carRange,
     television,
+    televisionRange,
     session,
     day,
     energy,
+    energyRange,
     carbon,
+    carbonRange,
     confidence,
     sourceLink,
     live,

@@ -3,6 +3,6 @@ import { perplexitySelectors } from "./perplexity-selectors";
 
 export const perplexityAdapter = createSemanticAdapter({
   platform: "perplexity",
-  defaultModelLabel: "Perplexity — modèle non divulgué",
+  defaultModelLabel: "Perplexity · modèle non communiqué",
   selectors: perplexitySelectors,
 });

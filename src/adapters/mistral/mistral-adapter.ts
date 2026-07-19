@@ -3,6 +3,6 @@ import { mistralSelectors } from "./mistral-selectors";
 
 export const mistralAdapter = createSemanticAdapter({
   platform: "mistral",
-  defaultModelLabel: "Mistral — modèle non identifié",
+  defaultModelLabel: "Mistral · modèle non communiqué",
   selectors: mistralSelectors,
 });

@@ -113,7 +113,11 @@ export function createSemanticAdapter(
         .at(-1);
       if (!user) return null;
       const promptText = readVisibleText(user, selectors.excludedContent);
-      const responseText = readVisibleText(assistant, selectors.excludedContent);
+      const responseText = assistants
+        .filter((candidate) => appearsBefore(user, candidate))
+        .map((candidate) => readVisibleText(candidate, selectors.excludedContent))
+        .filter(Boolean)
+        .join(" ");
       if (!promptText && !responseText) return null;
       const interrupted = selectors.interruptedTurns.some(
         (selector) => assistant.matches(selector) || assistant.querySelector(selector),
@@ -124,7 +128,7 @@ export function createSemanticAdapter(
           assistant.getAttribute("data-is-streaming") === "true" ||
           queryFirst(root, selectors.streamingControls) !== null);
       return {
-        turnElement: assistant,
+        turnElement: user,
         promptText,
         responseText,
         phase: interrupted ? "interrupted" : streaming ? "streaming" : "completed",

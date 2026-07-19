@@ -54,7 +54,7 @@ function emptyViewModel(platform: PlatformId): WidgetViewModel {
   const zero = createRange(0, 0, 0);
   return {
     platform,
-    model: "Modèle non détecté",
+    model: "Modèle non communiqué",
     state: "initializing",
     current: {
       tokens: { input: zero, output: zero, source: "estimated" },
@@ -167,8 +167,22 @@ export class ContentController {
   }
 
   refresh(): Promise<void> {
-    this.refreshQueue = this.refreshQueue.then(() => this.refreshInternal());
+    this.refreshQueue = this.refreshQueue
+      .then(() => this.refreshInternal())
+      .catch(() => this.pauseAfterRefreshFailure());
     return this.refreshQueue;
+  }
+
+  private pauseAfterRefreshFailure(): void {
+    this.unsubscribeAdapter?.();
+    this.unsubscribeAdapter = null;
+    this.observedRoot = null;
+    this.viewModel = {
+      ...this.viewModel,
+      state: "measurement-paused",
+      current: emptyViewModel(this.adapter.platform).current,
+    };
+    this.widget?.update(this.viewModel);
   }
 
   stop(): void {

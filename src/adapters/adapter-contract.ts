@@ -5,6 +5,7 @@ export interface DetectedModel {
 }
 
 export interface VisibleTurnSnapshot {
+  /** Stable DOM anchor for one user interaction, including all following assistant segments. */
   turnElement: Element;
   promptText: string;
   responseText: string;

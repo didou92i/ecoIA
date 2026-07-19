@@ -14,6 +14,7 @@ interface AdapterContractOptions {
   expectedModel: string;
   expectedPrompt: string;
   expectedResponse: string;
+  expectedFallbackModel?: string;
   excludedText?: string[];
 }
 
@@ -61,7 +62,7 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       expect(options.adapter.readLatestTurn(streamingRoot)?.phase).toBe("interrupted");
     });
 
-    it("treats a regenerated assistant node as a new latest turn", () => {
+    it("anchors a new interaction to its user turn", () => {
       const root = requireRoot(options.adapter);
       const user = root.querySelector(options.userSelector);
       const assistant = root.querySelector(options.assistantSelector);
@@ -72,9 +73,29 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       nextAssistant.textContent = "Nouvelle réponse régénérée.";
       root.append(nextUser, nextAssistant);
       const turn = options.adapter.readLatestTurn(root);
-      expect(turn?.turnElement).toBe(nextAssistant);
+      expect(turn?.turnElement).toBe(nextUser);
       expect(turn?.promptText).toBe("Question régénérée synthétique.");
       expect(turn?.responseText).toBe("Nouvelle réponse régénérée.");
+    });
+
+    it("keeps one interaction anchor and combines its assistant segments", () => {
+      const root = requireRoot(options.adapter);
+      const users = root.querySelectorAll(options.userSelector);
+      const assistants = root.querySelectorAll(options.assistantSelector);
+      const latestUser = users.item(users.length - 1);
+      const latestAssistant = assistants.item(assistants.length - 1);
+      if (!latestUser || !latestAssistant) throw new Error("MISSING_TURN_FIXTURE");
+
+      const toolSegment = latestAssistant.cloneNode(false) as Element;
+      toolSegment.textContent = "Étape intermédiaire synthétique.";
+      root.append(toolSegment);
+
+      const turn = options.adapter.readLatestTurn(root);
+      expect(turn?.turnElement).toBe(latestUser);
+      expect(turn?.promptText).toBe(options.expectedPrompt);
+      expect(turn?.responseText).toBe(
+        `${options.expectedResponse} Étape intermédiaire synthétique.`,
+      );
     });
 
     it("detects an SPA conversation marker change without exposing it", () => {
@@ -90,6 +111,9 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       loadFixture(options.platform, "unknown");
       const root = options.adapter.findConversationRoot(document);
       expect(root ? options.adapter.readLatestTurn(root) : null).toBeNull();
+      if (options.expectedFallbackModel) {
+        expect(options.adapter.detectModel(document).label).toBe(options.expectedFallbackModel);
+      }
     });
   });
 }

@@ -57,7 +57,10 @@ describe("ecoIA widget", () => {
   beforeEach(() => {
     document.body.replaceChildren();
   });
-  afterEach(() => vi.unstubAllGlobals());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
 
   it("works in a Chrome isolated world without a custom-elements registry", () => {
     vi.stubGlobal("customElements", null);
@@ -89,14 +92,19 @@ describe("ecoIA widget", () => {
     );
   });
 
-  it("renders token and environmental ranges", () => {
+  it("renders central estimates and readable uncertainty ranges", () => {
     const widget = createWidget();
     widget.update(viewModel);
     expect(widget.shadowRoot?.querySelector("[data-input-tokens]")?.textContent).toBe(
-      "90–110 tokens",
+      "≈ 100 tokens",
     );
-    expect(widget.shadowRoot?.querySelector("[data-water]")?.textContent).toBe("1–3 ml");
+    expect(widget.shadowRoot?.querySelector("[data-input-token-range]")?.textContent).toBe(
+      "de 90 à 110 tokens",
+    );
+    expect(widget.shadowRoot?.querySelector("[data-water]")?.textContent).toBe("≈ 2 ml");
+    expect(widget.shadowRoot?.querySelector("[data-water-range]")?.textContent).toBe("de 1 à 3 ml");
     expect(widget.shadowRoot?.querySelector("[data-confidence]")?.textContent).toContain("C");
+    expect(widget.shadowRoot?.textContent).not.toMatch(/[–—]/u);
   });
 
   it("toggles and persists an explicit light/dark theme", () => {
@@ -154,6 +162,49 @@ describe("ecoIA widget", () => {
     widget.update(viewModel);
     expect(widget.shadowRoot?.querySelector("[data-live]")?.textContent).toContain(
       "Réponse terminée",
+    );
+  });
+
+  it("keeps the completion announcement during the aggregate refresh", () => {
+    const widget = createWidget();
+    widget.update(viewModel);
+    expect(widget.shadowRoot?.querySelector("[data-live]")?.textContent).toContain(
+      "Réponse terminée",
+    );
+
+    widget.update({ ...viewModel, session: viewModel.session });
+    expect(widget.shadowRoot?.querySelector("[data-live]")?.textContent).toContain(
+      "Réponse terminée",
+    );
+  });
+
+  it("keeps a safety margin around the two streaming renders per second budget", () => {
+    vi.useFakeTimers();
+    const now = vi.spyOn(performance, "now").mockReturnValue(1_000);
+    const widget = createWidget();
+    widget.update({ ...viewModel, state: "streaming" });
+    const initialOutput = widget.shadowRoot?.querySelector("[data-output-tokens]")?.textContent;
+
+    now.mockReturnValue(1_500);
+    widget.update({
+      ...viewModel,
+      state: "streaming",
+      current: {
+        ...viewModel.current,
+        tokens: {
+          ...viewModel.current.tokens,
+          output: createRange(380, 400, 420),
+        },
+      },
+    });
+
+    expect(widget.shadowRoot?.querySelector("[data-output-tokens]")?.textContent).toBe(
+      initialOutput,
+    );
+    now.mockReturnValue(1_525);
+    vi.advanceTimersByTime(25);
+    expect(widget.shadowRoot?.querySelector("[data-output-tokens]")?.textContent).toBe(
+      "≈ 400 tokens",
     );
   });
 });

@@ -300,7 +300,9 @@ Règles :
 - un adaptateur qui ne reconnaît plus la page échoue fermé et affiche « mesure en pause » ;
 - aucune valeur antérieure n’est présentée comme la réponse courante ;
 - une réponse interrompue compte uniquement sa partie visible ;
-- une régénération est une nouvelle interaction ;
+- les segments assistant visibles rattachés au même message utilisateur forment une interaction et
+  leur texte visible est cumulé ;
+- une régénération rattachée au même prompt met à jour cette interaction visible ;
 - un prompt modifié crée une nouvelle interaction ;
 - un changement de conversation SPA réinitialise la session sans stocker l’identifiant ;
 - un modèle inconnu utilise un profil générique de confiance D et propose une sélection manuelle ;

@@ -4,8 +4,10 @@ test("injecte le widget et présente une estimation compréhensible", async ({ e
   const widget = extensionPage.locator("eco-ia-widget");
   await expect(widget.locator("[data-status]")).toHaveText("Réponse mesurée");
   await expect(widget.locator("[data-model]")).toHaveText("GPT-4o");
-  await expect(widget.locator("[data-input-tokens]")).toContainText("token");
-  await expect(widget.locator("[data-water]")).not.toHaveText("—");
+  await expect(widget.locator("[data-input-tokens]")).toHaveText(/^≈ .+ tokens$/u);
+  await expect(widget.locator("[data-water]")).toHaveText(/^≈ /u);
+  await expect(widget.locator("[data-water-range]")).toHaveText(/^de .+ à .+$/u);
+  expect(await widget.locator(".panel").innerText()).not.toMatch(/[–—]/u);
   await expect(widget.locator("[data-live]")).toContainText("Réponse terminée");
 });
 

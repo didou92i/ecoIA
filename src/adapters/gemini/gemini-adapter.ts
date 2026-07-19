@@ -3,6 +3,6 @@ import { geminiSelectors } from "./gemini-selectors";
 
 export const geminiAdapter = createSemanticAdapter({
   platform: "gemini",
-  defaultModelLabel: "Gemini — modèle non identifié",
+  defaultModelLabel: "Gemini · modèle non communiqué",
   selectors: geminiSelectors,
 });

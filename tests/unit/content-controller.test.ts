@@ -184,6 +184,20 @@ describe("content controller", () => {
     expect(updates.at(-1)?.state).toBe("measurement-paused");
   });
 
+  it("fails closed when the extension API is invalidated during a DOM refresh", async () => {
+    const { adapter, api, controller, updates } = createHarness();
+    await controller.start();
+    api.runtime.sendMessage = vi.fn(async () => {
+      throw new Error("Extension context invalidated.");
+    });
+    adapter.marker = "conversation-b";
+
+    await expect(controller.refresh()).resolves.toBeUndefined();
+
+    expect(updates.at(-1)?.state).toBe("measurement-paused");
+    expect(adapter.cleanup).toHaveBeenCalledOnce();
+  });
+
   it("cleans up observers and the injected widget", async () => {
     const { adapter, controller, widget } = createHarness();
     await controller.start();
