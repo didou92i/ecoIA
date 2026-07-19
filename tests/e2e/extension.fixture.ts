@@ -65,8 +65,23 @@ export const test = base.extend<ExtensionFixtures, WorkerFixtures>({
       headless: true,
       args: [`--disable-extensions-except=${extensionPath}`, `--load-extension=${extensionPath}`],
     });
+    const browserErrors: string[] = [];
+    const observePage = (page: Page) => {
+      page.on("console", (message) => {
+        if (message.type() === "error") browserErrors.push(`console:${message.text()}`);
+      });
+      page.on("pageerror", (error) => browserErrors.push(`pageerror:${error.message}`));
+    };
+    for (const page of context.pages()) observePage(page);
+    context.on("page", observePage);
+    context.on("requestfailed", (request) => {
+      browserErrors.push(
+        `requestfailed:${request.url()}:${request.failure()?.errorText ?? "unknown"}`,
+      );
+    });
     await use(context);
     await context.close();
+    expect(browserErrors, "Erreurs navigateur non masquées").toEqual([]);
   },
   extensionPage: async ({ extensionContext, fixtureOrigin }, use) => {
     const page = extensionContext.pages()[0] ?? (await extensionContext.newPage());

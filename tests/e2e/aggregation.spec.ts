@@ -1,10 +1,12 @@
 import { expect, test } from "./extension.fixture";
 
-test("regroupe les étapes assistant d'une même question en une interaction", async ({
+test("ignore les tours de contexte et regroupe les étapes assistant du tour courant", async ({
   extensionPage,
 }) => {
   const widget = extensionPage.locator("eco-ia-widget");
   await expect(widget.locator("[data-session]")).toContainText("1 interaction");
+  await widget.getByText("Méthode et détails", { exact: true }).click();
+  await expect(widget.locator("[data-context]")).toBeVisible();
   const previousOutput = await widget.locator("[data-output-tokens]").textContent();
 
   await extensionPage.evaluate(() => {

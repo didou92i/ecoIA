@@ -3,6 +3,11 @@ import { expect, test } from "./extension.fixture";
 test("limite les rendus en flux et observe uniquement la conversation", async ({
   extensionPage,
 }) => {
+  test.info().annotations.push({
+    type: "unit-coverage",
+    description:
+      "La lecture unique du contexte par tour est instrumentée dans tests/unit/content-controller.test.ts.",
+  });
   await extensionPage.evaluate(() => {
     const main = document.querySelector("main");
     if (!main) throw new Error("MISSING_CONVERSATION_ROOT");

@@ -3,11 +3,14 @@ import { expect, test } from "./extension.fixture";
 test("injecte le widget et présente une estimation compréhensible", async ({ extensionPage }) => {
   const widget = extensionPage.locator("eco-ia-widget");
   await expect(widget.locator("[data-status]")).toHaveText("Réponse mesurée");
-  await expect(widget.locator("[data-model]")).toHaveText("GPT-4o");
+  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4o");
   await expect(widget.locator("[data-input-tokens]")).toHaveText(/^≈ .+ tokens$/u);
   await expect(widget.locator("[data-water]")).toHaveText(/^≈ /u);
   await expect(widget.locator("[data-water-range]")).toHaveText(/^de .+ à .+$/u);
   expect(await widget.locator(".panel").innerText()).not.toMatch(/[–—]/u);
+  await widget.getByText("Méthode et détails", { exact: true }).click();
+  await expect(widget.locator("[data-context]")).toBeVisible();
+  await expect(widget.locator("[data-diagnostics]")).toContainText("Contexte · Complet");
   await expect(widget.locator("[data-live]")).toContainText("Réponse terminée");
 });
 

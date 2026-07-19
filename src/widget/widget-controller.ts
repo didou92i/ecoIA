@@ -25,9 +25,16 @@ const defaultPreferences: WidgetPreferences = {
   top: 96,
 };
 
-export function clampWidgetTop(top: number, viewportHeight: number, collapsed: boolean): number {
+export function clampWidgetTop(
+  top: number,
+  viewportHeight: number,
+  collapsed: boolean,
+  renderedHeight = 540,
+): number {
   const minimum = 12;
-  const estimatedHeight = collapsed ? 40 : Math.min(540, Math.max(160, viewportHeight - 24));
+  const estimatedHeight = collapsed
+    ? 40
+    : Math.min(renderedHeight, Math.max(160, viewportHeight - 24));
   return Math.max(minimum, Math.min(top, Math.max(minimum, viewportHeight - estimatedHeight - 12)));
 }
 
@@ -39,6 +46,7 @@ export class WidgetController {
   private modelOptionsSignature = "";
   private readonly cleanupCallbacks: Array<() => void> = [];
   private dragState: { pointerId: number; offsetX: number; offsetY: number } | null = null;
+  private reclampFrame: number | null = null;
 
   constructor(
     private readonly host: HTMLElement,
@@ -62,6 +70,8 @@ export class WidgetController {
 
   disconnect(): void {
     for (const cleanup of this.cleanupCallbacks.splice(0)) cleanup();
+    if (this.reclampFrame !== null) window.cancelAnimationFrame(this.reclampFrame);
+    this.reclampFrame = null;
   }
 
   toggleCollapsed(): void {
@@ -134,6 +144,7 @@ export class WidgetController {
         this.onModelSelectionChange(requestedProfileId);
       }
     });
+    this.listen(this.elements.details, "toggle", () => this.scheduleReclamp());
     this.listen(this.elements.dragHandle, "pointerdown", (event) =>
       this.startDrag(event as PointerEvent),
     );
@@ -205,12 +216,22 @@ export class WidgetController {
   }
 
   private reclamp(): void {
+    const renderedHeight = this.elements.panel.getBoundingClientRect().height;
     this.preferences.top = clampWidgetTop(
       this.preferences.top,
       window.innerHeight,
       this.preferences.collapsed,
+      renderedHeight > 0 ? renderedHeight : undefined,
     );
     this.applyPreferences(false);
+  }
+
+  private scheduleReclamp(): void {
+    if (this.reclampFrame !== null) window.cancelAnimationFrame(this.reclampFrame);
+    this.reclampFrame = window.requestAnimationFrame(() => {
+      this.reclampFrame = null;
+      this.reclamp();
+    });
   }
 
   private applyPreferences(notify = true): void {

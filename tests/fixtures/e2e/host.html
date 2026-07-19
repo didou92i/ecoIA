@@ -16,6 +16,18 @@
     <aside id="outside-conversation">Zone hors conversation</aside>
     <main data-conversation-id="synthetic-conversation-a">
       <button type="button" data-testid="model-switcher-dropdown-button">GPT-4o</button>
+      <article data-message-author-role="user" data-fixture-prior-turn>
+        <p>Quel matériau imaginaire compose la maquette de démonstration ?</p>
+      </article>
+      <article data-message-author-role="assistant" data-fixture-prior-turn>
+        <p>La maquette fictive utilise du carton bleu réemployé.</p>
+      </article>
+      <article data-message-author-role="user" data-fixture-prior-turn>
+        <p>Quelle forme géométrique porte son repère synthétique ?</p>
+      </article>
+      <article data-message-author-role="assistant" data-fixture-prior-turn>
+        <p>Le repère inventé prend la forme d'un hexagone vert.</p>
+      </article>
       <article data-message-author-role="user">
         <p>Question synthétique privée pour le test local.</p>
       </article>
@@ -23,5 +35,13 @@
         <p data-answer>Réponse synthétique locale sans donnée personnelle.</p>
       </article>
     </main>
+    <script>
+      if (location.pathname === "/missing-model") {
+        document.querySelector("[data-testid='model-switcher-dropdown-button']")?.remove();
+      }
+      if (location.pathname === "/no-context") {
+        for (const turn of document.querySelectorAll("[data-fixture-prior-turn]")) turn.remove();
+      }
+    </script>
   </body>
 </html>

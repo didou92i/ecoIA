@@ -10,6 +10,7 @@ import {
   registerEcoWidget,
   type WidgetViewModel,
 } from "../../src/widget/eco-widget";
+import { clampWidgetTop } from "../../src/widget/widget-controller";
 
 const impactIndicator = {
   range: createRange(1, 2, 3),
@@ -134,6 +135,10 @@ describe("ecoIA widget", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+  });
+
+  it("recalcule la position haute avec la hauteur réellement rendue des détails", () => {
+    expect(clampWidgetTop(96, 720, false, 696)).toBe(12);
   });
 
   it("works in a Chrome isolated world without a custom-elements registry", () => {
