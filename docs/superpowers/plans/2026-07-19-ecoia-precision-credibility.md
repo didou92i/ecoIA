@@ -370,11 +370,11 @@ export function findStaleSources(sources, reviewedAt, maximumAgeDays = 366) {
 
 **Files:**
 
-- Modify: `tests/fixtures/chatgpt/idle.html`
+- Modify: `tests/fixtures/e2e/host.html`
 - Create: `tests/e2e/precision-controls.spec.ts`
 - Modify: `tests/e2e/widget.spec.ts`
 - Modify: `tests/e2e/aggregation.spec.ts`
-- Modify: `tests/e2e/privacy-network.spec.ts`
+- Modify: `tests/e2e/network-zero.spec.ts`
 - Modify: `tests/e2e/accessibility.spec.ts`
 - Modify: `tests/e2e/performance.spec.ts`
 
