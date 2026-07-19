@@ -10,6 +10,7 @@ runAdapterContract({
   assistantSelector: "model-response",
   markerAttribute: "data-conversation-id",
   expectedModel: "Gemini 2.5 Pro",
+  expectedFallbackModel: "Gemini · modèle non communiqué",
   expectedPrompt: "Question Gemini synthétique.",
   expectedResponse: "Réponse Gemini synthétique.",
 });

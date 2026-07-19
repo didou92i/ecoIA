@@ -14,7 +14,7 @@ interface AdapterContractOptions {
   expectedModel: string;
   expectedPrompt: string;
   expectedResponse: string;
-  expectedFallbackModel?: string;
+  expectedFallbackModel: string;
   excludedText?: string[];
 }
 
@@ -41,7 +41,10 @@ export function runAdapterContract(options: AdapterContractOptions): void {
     it("extracts only the latest visible completed turn and model", () => {
       const root = requireRoot(options.adapter);
       const turn = options.adapter.readLatestTurn(root);
-      expect(options.adapter.detectModel(root).label).toBe(options.expectedModel);
+      expect(options.adapter.detectModel(root)).toEqual({
+        label: options.expectedModel,
+        observed: true,
+      });
       expect(turn).toMatchObject({
         promptText: options.expectedPrompt,
         responseText: options.expectedResponse,
@@ -111,9 +114,10 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       loadFixture(options.platform, "unknown");
       const root = options.adapter.findConversationRoot(document);
       expect(root ? options.adapter.readLatestTurn(root) : null).toBeNull();
-      if (options.expectedFallbackModel) {
-        expect(options.adapter.detectModel(document).label).toBe(options.expectedFallbackModel);
-      }
+      expect(options.adapter.detectModel(document)).toEqual({
+        label: options.expectedFallbackModel,
+        observed: false,
+      });
     });
   });
 }

@@ -10,6 +10,7 @@ runAdapterContract({
   assistantSelector: "[data-testid='answer']",
   markerAttribute: "data-thread-id",
   expectedModel: "Claude 3.7 Sonnet",
+  expectedFallbackModel: "Perplexity · modèle non communiqué",
   expectedPrompt: "Question Perplexity synthétique.",
   expectedResponse: "Réponse narrative Perplexity.",
   excludedText: ["Source à exclure", "Question liée à exclure"],

@@ -56,6 +56,17 @@ describe("impact profile registry", () => {
     expect(resolveImpactProfileId("mistral", "Future model")).toBe("mistral-generic-v1");
   });
 
+  it("uses grade-D generic fallbacks for every platform", () => {
+    for (const fallbackId of Object.values(impactRegistry.platformFallbacks)) {
+      const fallback = impactRegistry.profiles.find((profile) => profile.id === fallbackId);
+      if (!fallback) throw new Error("MISSING_PLATFORM_FALLBACK");
+      expect(fallback.indicators.energyWh.confidence).toBe("D");
+      expect(fallback.indicators.waterMl.confidence).toBe("D");
+      expect(fallback.indicators.carbonG.confidence).toBe("D");
+    }
+    expect(impactRegistry.platformFallbacks.gemini).toBe("google-generic-v1");
+  });
+
   it.each<[string, (copy: MutableRegistry) => void]>([
     ["non-HTTPS source", (copy) => (requireFirst(copy.sources).url = "http://example.com")],
     ["invalid source date", (copy) => (requireFirst(copy.sources).publicationDate = "2025/01/01")],

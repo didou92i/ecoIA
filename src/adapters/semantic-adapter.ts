@@ -98,8 +98,10 @@ export function createSemanticAdapter(
   return {
     platform: configuration.platform,
     detectModel(root) {
-      const label = queryFirst(root, selectors.modelLabels)?.textContent?.trim();
-      return { label: label || configuration.defaultModelLabel };
+      const observedLabel = queryFirst(root, selectors.modelLabels)?.textContent?.trim();
+      return observedLabel
+        ? { label: observedLabel, observed: true }
+        : { label: configuration.defaultModelLabel, observed: false };
     },
     findConversationRoot(document) {
       return queryFirst(document, selectors.conversationRoots);

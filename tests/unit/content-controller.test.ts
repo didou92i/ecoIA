@@ -37,7 +37,7 @@ class FakeAdapter implements PlatformAdapter {
   rootAvailable = true;
 
   detectModel() {
-    return { label: this.model };
+    return { label: this.model, observed: true };
   }
   findConversationRoot() {
     return this.rootAvailable ? this.root : null;

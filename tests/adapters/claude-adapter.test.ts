@@ -10,6 +10,7 @@ runAdapterContract({
   assistantSelector: "[data-testid='assistant-turn']",
   markerAttribute: "data-conversation-id",
   expectedModel: "Claude 3.7 Sonnet",
+  expectedFallbackModel: "Claude · modèle non communiqué",
   expectedPrompt: "Question Claude synthétique.",
   expectedResponse: "Réponse Claude synthétique.",
 });

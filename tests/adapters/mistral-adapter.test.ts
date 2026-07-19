@@ -10,6 +10,7 @@ runAdapterContract({
   assistantSelector: "[data-message-author='assistant']",
   markerAttribute: "data-conversation-id",
   expectedModel: "Mistral Large 2",
+  expectedFallbackModel: "Mistral · modèle non communiqué",
   expectedPrompt: "Question Mistral synthétique.",
   expectedResponse: "Réponse Mistral synthétique.",
   excludedText: ["Pièce jointe exclue."],

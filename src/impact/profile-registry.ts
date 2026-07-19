@@ -180,6 +180,13 @@ export function validateImpactRegistry(value: unknown): ImpactRegistry {
   for (const platform of platformIds) {
     const fallbackId = value.platformFallbacks[platform];
     if (!isIdentifier(fallbackId) || !profileIds.has(fallbackId)) invalidRegistry();
+    const fallback = profiles.find((profile) => profile.id === fallbackId);
+    if (
+      !fallback ||
+      indicatorKeys.some((indicator) => fallback.indicators[indicator].confidence !== "D")
+    ) {
+      invalidRegistry();
+    }
   }
   validateProxyGraph(profiles);
   return value as unknown as ImpactRegistry;
@@ -191,7 +198,7 @@ export function getImpactProfile(profileId: string): ImpactProfile | null {
   return impactRegistry.profiles.find((profile) => profile.id === profileId) ?? null;
 }
 
-export function resolveImpactProfileId(platform: PlatformId, modelLabel: string): string {
+export function matchImpactProfileId(platform: PlatformId, modelLabel: string): string | null {
   const normalizedLabel = normalizeModelLabel(modelLabel.slice(0, 128));
   const platformProfiles = impactRegistry.profiles.filter(
     (profile) => profile.platforms.includes(platform) && profile.modelMatchers.length > 0,
@@ -213,5 +220,9 @@ export function resolveImpactProfileId(platform: PlatformId, modelLabel: string)
     if (underlyingModel) return underlyingModel.id;
   }
 
-  return impactRegistry.platformFallbacks[platform];
+  return null;
+}
+
+export function resolveImpactProfileId(platform: PlatformId, modelLabel: string): string {
+  return matchImpactProfileId(platform, modelLabel) ?? impactRegistry.platformFallbacks[platform];
 }

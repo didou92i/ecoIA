@@ -350,6 +350,48 @@
       }
     },
     {
+      "id": "google-generic-v1",
+      "version": 1,
+      "displayName": "Google Gemini — profil générique",
+      "platforms": ["gemini"],
+      "modelMatchers": [],
+      "limitations": [
+        "Unknown Gemini model proxied to the generic assistant profile with wide grade-D ranges."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "model-proxy",
+          "unit": "Wh",
+          "profileId": "generic-assistant-v1",
+          "indicator": "energyWh",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "model-proxy",
+          "unit": "ml",
+          "profileId": "generic-assistant-v1",
+          "indicator": "waterMl",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "model-proxy",
+          "unit": "gCO2e",
+          "profileId": "generic-assistant-v1",
+          "indicator": "carbonG",
+          "lowMultiplier": 0.5,
+          "highMultiplier": 2,
+          "confidence": "D",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    },
+    {
       "id": "mistral-large-2-disclosure-v1",
       "version": 1,
       "displayName": "Mistral Large 2 / Le Chat",
@@ -479,7 +521,7 @@
   "platformFallbacks": {
     "chatgpt": "openai-generic-v1",
     "claude": "anthropic-generic-v1",
-    "gemini": "google-gemini-apps-median-v1",
+    "gemini": "google-generic-v1",
     "mistral": "mistral-generic-v1",
     "perplexity": "perplexity-generic-v1"
   }

@@ -2,6 +2,7 @@ import type { PlatformId } from "../shared/contracts";
 
 export interface DetectedModel {
   label: string;
+  observed: boolean;
 }
 
 export interface VisibleTurnSnapshot {
