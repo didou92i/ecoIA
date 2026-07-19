@@ -317,6 +317,20 @@ describe("content controller", () => {
       effectiveLabel: "OpenAI GPT-4o",
     });
 
+    const currentAdapter = new FakeAdapter();
+    currentAdapter.model = "Instantanée";
+    const current = createHarness(currentAdapter);
+    await current.controller.start();
+    expect(numericMessages(current.messages)[0]).toMatchObject({
+      modelProfileId: "openai-generic-v1",
+    });
+    expect(current.updates.at(-1)?.modelControl).toMatchObject({
+      resolution: "automatic",
+      effectiveLabel: "GPT-5.5 Instant · proxy D",
+      warning: null,
+      methodNote: expect.stringContaining("Aucune donnée environnementale propre à GPT-5.5"),
+    });
+
     const unobservedAdapter = new FakeAdapter();
     unobservedAdapter.model = "Modèle non communiqué";
     unobservedAdapter.modelObserved = false;
@@ -340,14 +354,16 @@ describe("content controller", () => {
     });
     expect(unsupported.updates.at(-1)?.modelControl).toMatchObject({
       resolution: "generic",
-      warning: "Aucun profil documenté pour ce modèle — profil générique utilisé",
+      effectiveLabel: "GPT-4o mini · proxy D",
+      warning: null,
+      methodNote: expect.stringContaining("Aucune donnée environnementale propre à GPT-4o mini"),
     });
   });
 
   it("recalculates the same interaction when a compatible manual profile is selected", async () => {
     const { controller, messages, updates, widget } = createHarness();
     await controller.start();
-    modelSelectionCallback(widget)("openai-gpt-4-1-v1");
+    modelSelectionCallback(widget)("chatgpt-gpt-5-6-sol");
     await controller.refresh();
 
     const [first, second] = numericMessages(messages) as Array<{
@@ -357,10 +373,11 @@ describe("content controller", () => {
     }>;
     expect(second?.eventId).toBe(first?.eventId);
     expect(second?.sequence).toBe((first?.sequence ?? 0) + 1);
-    expect(second?.modelProfileId).toBe("openai-gpt-4-1-v1");
+    expect(second?.modelProfileId).toBe("openai-generic-v1");
     expect(updates.at(-1)?.modelControl).toMatchObject({
       resolution: "manual",
-      selectedProfileId: "openai-gpt-4-1-v1",
+      selectedProfileId: "chatgpt-gpt-5-6-sol",
+      effectiveLabel: "GPT-5.6 Sol · proxy D",
       warning: null,
     });
     expect(updates.at(-1)?.diagnostic.model).toBe("manual");
@@ -373,7 +390,7 @@ describe("content controller", () => {
     expect(harness.getToolbarListener()).not.toBeNull();
     expect(harness.getWorkerListener()).not.toBe(harness.getToolbarListener());
 
-    modelSelectionCallback(harness.widget)("openai-gpt-4-1-v1");
+    modelSelectionCallback(harness.widget)("chatgpt-gpt-5-6-sol");
     await harness.controller.refresh();
 
     const [automatic, manual] = numericMessages(harness.messages) as Array<{
@@ -383,11 +400,12 @@ describe("content controller", () => {
     }>;
     expect(manual?.eventId).toBe(automatic?.eventId);
     expect(manual?.sequence).toBe((automatic?.sequence ?? 0) + 1);
-    expect(manual?.modelProfileId).toBe("openai-gpt-4-1-v1");
+    expect(manual?.modelProfileId).toBe("openai-generic-v1");
     expect(harness.updates.at(-1)).toMatchObject({
       modelControl: {
         resolution: "manual",
-        selectedProfileId: "openai-gpt-4-1-v1",
+        selectedProfileId: "chatgpt-gpt-5-6-sol",
+        methodNote: expect.stringContaining("proxy OpenAI générique"),
       },
       session: { interactionCount: 1 },
       day: { interactionCount: 1, localDate: "2026-07-18" },
@@ -399,7 +417,7 @@ describe("content controller", () => {
     const { controller, messages, updates, widget } = createHarness();
     await controller.start();
     const select = modelSelectionCallback(widget);
-    select("openai-gpt-4-1-v1");
+    select("chatgpt-gpt-5-6-sol");
     await controller.refresh();
     const validMeasurement = structuredClone(updates.at(-1)?.current);
     const sentAfterValidSelection = numericMessages(messages).length;
@@ -410,7 +428,7 @@ describe("content controller", () => {
       expect(numericMessages(messages)).toHaveLength(sentAfterValidSelection);
       expect(updates.at(-1)?.current).toEqual(validMeasurement);
       expect(updates.at(-1)?.modelControl).toMatchObject({
-        selectedProfileId: "openai-gpt-4-1-v1",
+        selectedProfileId: "chatgpt-gpt-5-6-sol",
         selectionError: "Ce modèle n’est pas disponible pour cette plateforme.",
       });
       expect(JSON.stringify(updates.at(-1))).not.toContain(rejectedId);
@@ -469,7 +487,7 @@ describe("content controller", () => {
     adapter.contextSnapshot = { text: "Premier contexte", coverage: "complete" };
     const { controller, local, messages, session, updates, widget } = createHarness(adapter);
     await controller.start();
-    modelSelectionCallback(widget)("openai-gpt-4-1-v1");
+    modelSelectionCallback(widget)("chatgpt-gpt-5-6-sol");
     await controller.refresh();
 
     adapter.marker = "conversation-b";
@@ -480,7 +498,7 @@ describe("content controller", () => {
     expect(updates.at(-1)?.modelControl.selectedProfileId).toBeNull();
     expect(updates.at(-1)?.modelControl.resolution).toBe("automatic");
     expect(JSON.stringify({ local: local.values, session: session.values })).not.toMatch(
-      /openai-gpt-4-1-v1|selectedProfile|manualProfile/i,
+      /chatgpt-gpt-5-6-sol|selectedProfile|manualProfile/i,
     );
     expect(JSON.stringify(messages)).not.toContain("conversation-b");
   });
@@ -490,7 +508,7 @@ describe("content controller", () => {
     adapter.contextSnapshot = { text: "Premier contexte", coverage: "complete" };
     const { controller, messages, updates, widget } = createHarness(adapter);
     await controller.start();
-    modelSelectionCallback(widget)("openai-gpt-4-1-v1");
+    modelSelectionCallback(widget)("chatgpt-gpt-5-6-sol");
     await controller.refresh();
     const firstNumeric = numericMessages(messages)[0] as {
       eventId: string;
@@ -1180,7 +1198,7 @@ describe("content controller", () => {
     adapter.contextSnapshot = { text: "Contexte du premier tour", coverage: "complete" };
     const { controller, updates, widget } = createHarness(adapter);
     await controller.start();
-    modelSelectionCallback(widget)("openai-gpt-4-1-v1");
+    modelSelectionCallback(widget)("chatgpt-gpt-5-6-sol");
     await controller.refresh();
     const previous = updates.at(-1);
     expect(previous?.current.impact).not.toBeNull();

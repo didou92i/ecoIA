@@ -52,8 +52,10 @@ test("ne contacte aucun réseau distant et ne persiste ni texte ni choix de mod�
   await expect(widget.locator("[data-status]")).toHaveText("Réponse mesurée");
   await activateFixtureInteraction(page);
   await widget.getByText("Méthode et détails", { exact: true }).click();
-  await widget.getByRole("combobox", { name: "Modèle appliqué" }).selectOption("openai-gpt-4-1-v1");
-  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4.1");
+  await widget
+    .getByRole("combobox", { name: "Modèle appliqué" })
+    .selectOption("chatgpt-gpt-5-6-sol");
+  await expect(widget.locator("[data-model]")).toHaveText("GPT-5.6 Sol · proxy D");
   await expect(widget.locator("[data-diagnostics]")).toContainText("Modèle · Manuel");
 
   const stored = await serviceWorker.evaluate(async () => ({
@@ -70,7 +72,7 @@ test("ne contacte aucun réseau distant et ne persiste ni texte ni choix de mod�
     "Quelle forme géométrique porte son repère synthétique ?",
     "Le repère inventé prend la forme d'un hexagone vert.",
     "Zone hors conversation",
-    "openai-gpt-4-1-v1",
+    "chatgpt-gpt-5-6-sol",
     "synthetic-conversation-a",
     "synthetic-conversation-b",
     "data-conversation-id",

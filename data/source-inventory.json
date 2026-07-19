@@ -60,6 +60,20 @@
       "url": "https://ai.google.dev/gemini-api/docs/tokens",
       "accessedDate": "2026-07-19",
       "category": "token-calibration"
+    },
+    {
+      "id": "openai-chatgpt-gpt-5-6",
+      "title": "GPT-5.6 in ChatGPT",
+      "url": "https://help.openai.com/en/articles/20001354-gpt-56-in-chatgpt/",
+      "accessedDate": "2026-07-19",
+      "category": "model-catalog"
+    },
+    {
+      "id": "openai-model-release-notes",
+      "title": "Model Release Notes",
+      "url": "https://help.openai.com/en/articles/9624314-model-release-notes",
+      "accessedDate": "2026-07-19",
+      "category": "model-catalog"
     }
   ],
   "domains": {
@@ -81,6 +95,10 @@
         "token-mistral-common",
         "token-google-gemini-docs"
       ]
+    },
+    "modelCatalog": {
+      "sourceIds": ["openai-chatgpt-gpt-5-6", "openai-model-release-notes"],
+      "maximumAgeDays": 90
     }
   }
 }

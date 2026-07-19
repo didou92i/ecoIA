@@ -14,6 +14,7 @@ export interface WidgetElements {
   details: HTMLDetailsElement;
   modelSelect: HTMLSelectElement;
   detectedModel: HTMLElement;
+  modelMethodNote: HTMLElement;
   selectionError: HTMLElement;
   context: HTMLElement;
   contextExplanation: HTMLElement;
@@ -229,11 +230,13 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   modelLabel.htmlFor = modelSelect.id;
   const detectedModel = element("p", "detected-model");
   detectedModel.setAttribute("data-detected-model", "");
+  const modelMethodNote = element("p", "explanation");
+  modelMethodNote.setAttribute("data-model-method-note", "");
   const selectionError = element("p", "selection-error");
   selectionError.setAttribute("data-selection-error", "");
   selectionError.setAttribute("aria-live", "polite");
   selectionError.setAttribute("aria-atomic", "true");
-  modelControl.append(modelLabel, modelSelect, detectedModel, selectionError);
+  modelControl.append(modelLabel, modelSelect, detectedModel, modelMethodNote, selectionError);
 
   const context = element("p", "context-line");
   context.setAttribute("data-context", "");
@@ -320,6 +323,7 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
     details,
     modelSelect,
     detectedModel,
+    modelMethodNote,
     selectionError,
     context,
     contextExplanation,

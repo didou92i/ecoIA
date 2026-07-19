@@ -30,6 +30,29 @@ describe("open-source documentation", () => {
     }
   });
 
+  it("publishes the TerritorIA identity and a non-technical installation path", async () => {
+    const [readme, installation, notice, logo] = await Promise.all([
+      read("README.md"),
+      read("docs/INSTALLATION.md"),
+      read("NOTICE"),
+      readFile(
+        path.join(
+          projectRoot,
+          "assets/logos/stacked/logo_evergreen_territoria-stacked_20260719_full-color.png",
+        ),
+      ),
+    ]);
+
+    expect(readme).toContain("TerritorIA");
+    expect(readme).toContain("docs/INSTALLATION.md");
+    expect(readme).toContain("github.com/didou92i/ecoIA");
+    expect(installation).toMatch(/aucune clé API/iu);
+    expect(installation).toContain("ecoia-chromium.zip");
+    expect(installation).toContain("Extension context invalidated");
+    expect(notice).toMatch(/TerritorIA logo[\s\S]*excluded from the MIT license/iu);
+    expect(logo.byteLength).toBeGreaterThan(0);
+  });
+
   it("documents transparent estimates, limitations and primary sources", async () => {
     const combined = `${await read("README.md")}\n${await read("METHODOLOGY.md")}`;
     expect(combined).toMatch(/fourchette|borne basse/iu);
@@ -162,10 +185,27 @@ describe("open-source documentation", () => {
       expect(adr).toContain(requiredText);
     }
     expect(readme).toMatch(/Claude 3\.5\s+Sonnet[\s\S]*Claude 3\.5 Haiku/iu);
-    expect(readme).toMatch(/modèle affiché mais non documenté[\s\S]*profil générique/iu);
+    expect(readme).toMatch(/modèle\s+affiché mais non documenté[\s\S]*profil générique/iu);
     expect(readme).toContain("ADR 0002");
     expect(changelog).toContain("Claude 3.5 Sonnet");
     expect(changelog).toContain("data/source-inventory.json");
+  });
+
+  it("separates the volatile ChatGPT catalog from dated impact evidence", async () => {
+    const [readme, methodology, adr, changelog] = await Promise.all([
+      read("README.md"),
+      read("METHODOLOGY.md"),
+      read("docs/adr/0003-separate-model-catalog-from-impact-evidence.md"),
+      read("CHANGELOG.md"),
+    ]);
+
+    expect(readme).toMatch(/GPT-5\.6 Sol[\s\S]*GPT-5\.5 Instant[\s\S]*proxy D/iu);
+    expect(readme).toMatch(/catalogue local[\s\S]*90 jours/iu);
+    expect(methodology).toContain("data/model-catalog.json");
+    expect(methodology).toContain("help.openai.com/en/articles/20001354-gpt-56-in-chatgpt");
+    expect(adr).toMatch(/product availability[\s\S]*environmental (?:evidence|coefficient)/iu);
+    expect(adr).toContain("openai-generic-v1");
+    expect(changelog).toMatch(/Perplexity[\s\S]*citation/iu);
   });
 
   it("keeps CI read-only and pins official actions by commit SHA", async () => {

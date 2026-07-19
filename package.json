@@ -1,7 +1,18 @@
 {
   "name": "ecoia-browser-extension",
   "version": "0.1.0",
+  "description": "Extension locale et open source de sensibilisation à l’impact estimé des usages IA.",
   "private": true,
+  "license": "MIT",
+  "author": "TerritorIA",
+  "homepage": "https://github.com/didou92i/ecoIA#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/didou92i/ecoIA.git"
+  },
+  "bugs": {
+    "url": "https://github.com/didou92i/ecoIA/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=22"

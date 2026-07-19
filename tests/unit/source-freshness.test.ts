@@ -2,7 +2,11 @@ import { readFile } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-import { findStaleSources } from "../../scripts/check-source-freshness.mjs";
+import {
+  findStaleModelCatalogEntries,
+  findStaleInventorySources,
+  findStaleSources,
+} from "../../scripts/check-source-freshness.mjs";
 
 const reviewedAt = new Date("2026-07-19T00:00:00Z");
 
@@ -30,6 +34,45 @@ describe("source freshness", () => {
         reviewedAt,
       ),
     ).toEqual(["alpha", "zeta"]);
+  });
+
+  it("reviews volatile model-catalog sources after 90 days", () => {
+    const inventory = {
+      sources: [
+        { id: "stable", accessedDate: "2026-03-01" },
+        { id: "volatile", accessedDate: "2026-03-01" },
+      ],
+      domains: { modelCatalog: { sourceIds: ["volatile"], maximumAgeDays: 90 } },
+    };
+    expect(findStaleInventorySources(inventory, reviewedAt)).toEqual(["volatile"]);
+  });
+
+  it("forces a catalog review on an announced model retirement date", () => {
+    const catalog = {
+      reviewedOn: "2026-07-19",
+      maximumAgeDays: 90,
+      platforms: {
+        chatgpt: [
+          { id: "current", reviewBy: "2026-08-26" },
+          { id: "retiring", reviewBy: "2026-07-23" },
+        ],
+      },
+    };
+
+    expect(findStaleModelCatalogEntries(catalog, new Date("2026-07-22T00:00:00Z"))).toEqual([]);
+    expect(findStaleModelCatalogEntries(catalog, new Date("2026-07-23T00:00:00Z"))).toEqual([
+      "model:retiring",
+    ]);
+  });
+
+  it("honors the catalog review date independently of source access dates", () => {
+    const catalog = {
+      reviewedOn: "2026-01-01",
+      maximumAgeDays: 90,
+      platforms: { chatgpt: [] },
+    };
+
+    expect(findStaleModelCatalogEntries(catalog, reviewedAt)).toEqual(["model-catalog"]);
   });
 
   it("rejects an invalid accessed date", () => {
@@ -82,6 +125,8 @@ describe("source freshness", () => {
         "token-anthropic-tokenizer",
         "token-mistral-common",
         "token-google-gemini-docs",
+        "openai-chatgpt-gpt-5-6",
+        "openai-model-release-notes",
       ]),
     );
 
@@ -123,23 +168,38 @@ describe("source freshness", () => {
         (sourceIds) => Array.isArray(sourceIds) && sourceIds.length > 0,
       ),
     ).toBe(true);
+    const rawCatalog = JSON.parse(
+      await readFile(new URL("../../data/model-catalog.json", import.meta.url), "utf8"),
+    );
+    expect(inventory.domains.modelCatalog).toEqual({
+      sourceIds: rawCatalog.sourceIds,
+      maximumAgeDays: rawCatalog.maximumAgeDays,
+    });
   });
 
-  it("reads only the development inventory and leaves it unchanged offline", async () => {
+  it("reads only local evidence files and leaves them unchanged offline", async () => {
     const script = await readFile(
       new URL("../../scripts/check-source-freshness.mjs", import.meta.url),
       "utf8",
     );
     expect(script).not.toMatch(/\bfetch\b|https?\.request|writeFile|appendFile/u);
     const inventoryUrl = new URL("../../data/source-inventory.json", import.meta.url);
-    const before = await readFile(inventoryUrl, "utf8");
+    const catalogUrl = new URL("../../data/model-catalog.json", import.meta.url);
+    const [inventoryBefore, catalogBefore] = await Promise.all([
+      readFile(inventoryUrl, "utf8"),
+      readFile(catalogUrl, "utf8"),
+    ]);
     const result = spawnSync(process.execPath, ["scripts/check-source-freshness.mjs"], {
       cwd: process.cwd(),
       encoding: "utf8",
     });
-    const after = await readFile(inventoryUrl, "utf8");
+    const [inventoryAfter, catalogAfter] = await Promise.all([
+      readFile(inventoryUrl, "utf8"),
+      readFile(catalogUrl, "utf8"),
+    ]);
     expect(result.status, result.stderr).toBe(0);
-    expect(after).toBe(before);
+    expect(inventoryAfter).toBe(inventoryBefore);
+    expect(catalogAfter).toBe(catalogBefore);
   });
 
   it("requires the freshness check in CI before build and in the release checklist", async () => {

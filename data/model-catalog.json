@@ -1,0 +1,62 @@
+{
+  "version": "2026-07-19.2",
+  "reviewedOn": "2026-07-19",
+  "maximumAgeDays": 90,
+  "sourceIds": ["openai-chatgpt-gpt-5-6", "openai-model-release-notes"],
+  "platforms": {
+    "chatgpt": [
+      {
+        "id": "chatgpt-gpt-5-6-sol",
+        "label": "GPT-5.6 Sol",
+        "aliases": [
+          "gpt 5.6 sol",
+          "moyenne",
+          "medium",
+          "élevée",
+          "high",
+          "très élevée",
+          "extra high"
+        ],
+        "impactProfileId": "openai-generic-v1",
+        "sourceId": "openai-chatgpt-gpt-5-6"
+      },
+      {
+        "id": "chatgpt-gpt-5-6-sol-pro",
+        "label": "GPT-5.6 Sol Pro",
+        "aliases": ["gpt 5.6 sol pro", "pro"],
+        "impactProfileId": "openai-generic-v1",
+        "sourceId": "openai-chatgpt-gpt-5-6"
+      },
+      {
+        "id": "chatgpt-gpt-5-5-instant",
+        "label": "GPT-5.5 Instant",
+        "aliases": ["gpt 5.5 instant", "gpt 5.5", "instantanée 5.5", "instantanée", "instant"],
+        "impactProfileId": "openai-generic-v1",
+        "sourceId": "openai-chatgpt-gpt-5-6"
+      },
+      {
+        "id": "chatgpt-gpt-5-4-thinking",
+        "label": "GPT-5.4 Thinking",
+        "aliases": ["gpt 5.4 thinking", "gpt 5.4"],
+        "impactProfileId": "openai-generic-v1",
+        "sourceId": "openai-model-release-notes",
+        "reviewBy": "2026-07-23"
+      },
+      {
+        "id": "chatgpt-gpt-5-3-instant",
+        "label": "GPT-5.3 Instant",
+        "aliases": ["gpt 5.3 instant", "gpt 5.3"],
+        "impactProfileId": "openai-generic-v1",
+        "sourceId": "openai-model-release-notes"
+      },
+      {
+        "id": "chatgpt-openai-o3",
+        "label": "OpenAI o3",
+        "aliases": ["o3"],
+        "impactProfileId": "openai-generic-v1",
+        "sourceId": "openai-model-release-notes",
+        "reviewBy": "2026-08-26"
+      }
+    ]
+  }
+}

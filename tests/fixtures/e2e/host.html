@@ -15,7 +15,8 @@
   <body>
     <aside id="outside-conversation">Zone hors conversation</aside>
     <main data-conversation-id="synthetic-conversation-a">
-      <button type="button" data-testid="model-switcher-dropdown-button">GPT-4o</button>
+      <button type="button" aria-haspopup="menu" data-fixture-model-decoy>Plus</button>
+      <button type="button" aria-haspopup="menu" data-fixture-model>Instantanée</button>
       <article data-message-author-role="user" data-fixture-prior-turn>
         <p>Quel matériau imaginaire compose la maquette de démonstration ?</p>
       </article>
@@ -37,7 +38,7 @@
     </main>
     <script>
       if (location.pathname === "/missing-model") {
-        document.querySelector("[data-testid='model-switcher-dropdown-button']")?.remove();
+        document.querySelector("[data-fixture-model]")?.remove();
       }
       if (location.pathname === "/no-context") {
         for (const turn of document.querySelectorAll("[data-fixture-prior-turn]")) turn.remove();

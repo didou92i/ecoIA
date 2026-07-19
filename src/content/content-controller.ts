@@ -107,6 +107,7 @@ function emptyViewModel(platform: PlatformId): WidgetViewModel {
       resolution: resolution.source,
       selectedProfileId: null,
       options: getModelProfileOptions(platform),
+      methodNote: resolution.methodNote,
       warning: "Modèle non communiqué — profil générique utilisé",
       selectionError: null,
     },
@@ -585,12 +586,11 @@ export class ContentController {
       resolution: resolution.source,
       selectedProfileId: this.manualProfileId,
       options: getModelProfileOptions(this.adapter.platform),
+      methodNote: resolution.methodNote,
       warning:
-        resolution.source !== "generic"
+        resolution.source !== "generic" || resolution.modelObserved
           ? null
-          : resolution.modelObserved
-            ? "Aucun profil documenté pour ce modèle — profil générique utilisé"
-            : "Modèle non communiqué — profil générique utilisé",
+          : "Modèle non communiqué — profil générique utilisé",
       selectionError: this.selectionError,
     };
   }

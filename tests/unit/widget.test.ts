@@ -82,15 +82,35 @@ const viewModel: WidgetViewModel = {
   platform: "chatgpt",
   state: "completed",
   modelControl: {
-    detectedLabel: "GPT-4o détecté",
-    effectiveLabel: "GPT-4o",
+    detectedLabel: "Instantanée",
+    effectiveLabel: "GPT-5.5 Instant · proxy D",
     resolution: "manual",
-    selectedProfileId: "openai-gpt-4o-v1",
+    selectedProfileId: "chatgpt-gpt-5-5-instant",
     options: [
-      { id: "openai-gpt-4o-v1", label: "GPT-4o", isGeneric: false },
-      { id: "openai-gpt-4-1-v1", label: "GPT-4.1", isGeneric: false },
-      { id: "openai-generic-v1", label: "OpenAI générique", isGeneric: true },
+      {
+        id: "chatgpt-gpt-5-5-instant",
+        label: "GPT-5.5 Instant",
+        isGeneric: false,
+        isProxy: true,
+        impactProfileId: "openai-generic-v1",
+      },
+      {
+        id: "chatgpt-gpt-5-6-sol",
+        label: "GPT-5.6 Sol",
+        isGeneric: false,
+        isProxy: true,
+        impactProfileId: "openai-generic-v1",
+      },
+      {
+        id: "openai-generic-v1",
+        label: "OpenAI générique",
+        isGeneric: true,
+        isProxy: true,
+        impactProfileId: "openai-generic-v1",
+      },
     ],
+    methodNote:
+      "Aucune donnée environnementale propre à GPT-5.5 Instant. Calcul via le proxy OpenAI générique, qualité D.",
     warning: null,
     selectionError: null,
   },
@@ -286,9 +306,11 @@ describe("ecoIA widget", () => {
         effectiveLabel: '<img src=x onerror="alert(1)">',
         options: [
           {
-            id: "openai-gpt-4o-v1",
+            id: "chatgpt-gpt-5-5-instant",
             label: '<script type="text/javascript">alert(1)</script>',
             isGeneric: false,
+            isProxy: true,
+            impactProfileId: "openai-generic-v1",
           },
         ],
       },
@@ -302,9 +324,9 @@ describe("ecoIA widget", () => {
       '<svg onload="alert(1)">',
     );
     expect(
-      widget.shadowRoot?.querySelector<HTMLOptionElement>('option[value="openai-gpt-4o-v1"]')
+      widget.shadowRoot?.querySelector<HTMLOptionElement>('option[value="chatgpt-gpt-5-5-instant"]')
         ?.textContent,
-    ).toBe('<script type="text/javascript">alert(1)</script>');
+    ).toBe('<script type="text/javascript">alert(1)</script> — proxy D');
   });
 
   it("always exposes a native model selector with automatic and compatible options", () => {
@@ -318,11 +340,14 @@ describe("ecoIA widget", () => {
       [...(select?.options ?? [])].map(({ value, textContent }) => [value, textContent]),
     ).toEqual([
       ["", "Détection automatique"],
-      ["openai-gpt-4o-v1", "GPT-4o"],
-      ["openai-gpt-4-1-v1", "GPT-4.1"],
+      ["chatgpt-gpt-5-5-instant", "GPT-5.5 Instant — proxy D"],
+      ["chatgpt-gpt-5-6-sol", "GPT-5.6 Sol — proxy D"],
       ["openai-generic-v1", "OpenAI générique — forte incertitude"],
     ]);
-    expect(select?.value).toBe("openai-gpt-4o-v1");
+    expect(select?.value).toBe("chatgpt-gpt-5-5-instant");
+    expect(widget.shadowRoot?.querySelector("[data-model-method-note]")?.textContent).toContain(
+      "Aucune donnée environnementale propre à GPT-5.5 Instant",
+    );
   });
 
   it("opens details and focuses the selector from the missing-model alert", () => {
@@ -368,13 +393,13 @@ describe("ecoIA widget", () => {
     select.value = "injected-profile";
     select.dispatchEvent(new Event("change"));
     expect(onModelSelectionChange).not.toHaveBeenCalled();
-    expect(select.value).toBe("openai-gpt-4o-v1");
+    expect(select.value).toBe("chatgpt-gpt-5-5-instant");
 
-    select.value = "openai-gpt-4-1-v1";
+    select.value = "chatgpt-gpt-5-6-sol";
     select.dispatchEvent(new Event("change"));
     select.value = "";
     select.dispatchEvent(new Event("change"));
-    expect(onModelSelectionChange.mock.calls).toEqual([["openai-gpt-4-1-v1"], [null]]);
+    expect(onModelSelectionChange.mock.calls).toEqual([["chatgpt-gpt-5-6-sol"], [null]]);
   });
 
   it("preserves model option nodes while the platform/profile signature is unchanged", () => {

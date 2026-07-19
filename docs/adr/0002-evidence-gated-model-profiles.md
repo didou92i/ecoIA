@@ -25,7 +25,11 @@ label, then accepts only:
 
 Substring, suffix and fuzzy matching are prohibited. A detected label that does not meet the rule
 fails closed to the generic profile and displays that no documented profile exists for the model.
-Manual model choices use the same registry and cannot introduce an arbitrary label.
+Manual model choices use a closed, reviewed product catalog and cannot introduce an arbitrary
+label. Every catalog entry must still resolve to an evidence-gated impact profile; recognizing a
+current product name does not create model-specific environmental evidence. The separation between
+the volatile catalog and dated impact profiles is defined in
+[ADR 0003](0003-separate-model-catalog-from-impact-evidence.md).
 
 The v6 *How Hungry is AI?* table supports exact profiles for GPT-4o, GPT-4.1, Claude 3.7 Sonnet,
 Claude 3.5 Sonnet and Claude 3.5 Haiku. It does not support Claude 3.7 Sonnet ET, dated or suffixed

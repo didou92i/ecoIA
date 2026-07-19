@@ -7,7 +7,8 @@ sécurité.
 
 ## Signaler une vulnérabilité
 
-Sur le futur dépôt GitHub public, utilisez l’onglet **Security**, puis **Report a vulnerability**,
+Sur le [dépôt GitHub public](https://github.com/didou92i/ecoIA), utilisez l’onglet **Security**, puis
+**Report a vulnerability**,
 afin d’ouvrir un signalement privé. N’incluez pas de secret, de donnée personnelle ou de preuve
 offensive dans une issue publique. Si le signalement privé n’est pas encore activé, ouvrez une issue
 publique minimale demandant un canal privé, sans divulguer les détails techniques.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Guide d’installation
+    url: https://github.com/didou92i/ecoIA/blob/main/docs/INSTALLATION.md
+    about: Consultez les étapes simples et les solutions aux erreurs courantes.
+  - name: Signaler une vulnérabilité
+    url: https://github.com/didou92i/ecoIA/security
+    about: Utilisez un canal privé et ne publiez aucun détail sensible dans une issue.

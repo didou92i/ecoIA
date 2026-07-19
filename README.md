@@ -1,4 +1,14 @@
-# ecoIA
+<p align="center">
+  <img src="assets/logos/stacked/logo_evergreen_territoria-stacked_20260719_full-color.png" width="180" alt="Logo TerritorIA — Intelligence Artificielle Conseil et Digital">
+</p>
+
+<h1 align="center">ecoIA</h1>
+
+<p align="center"><strong>Comprendre l’impact estimé de ses usages IA, au moment où l’on s’en sert.</strong></p>
+
+> ecoIA est un outil open source de sensibilisation développé par **TerritorIA — Intelligence
+> Artificielle, Conseil & Digital**. Il fonctionne localement et reste librement consultable,
+> partageable et améliorable depuis ce dépôt.
 
 ecoIA est une extension de navigateur open source qui transforme l’usage visible des assistants IA
 en repères environnementaux simples : eau, électricité, carbone, durée équivalente d’un téléviseur
@@ -8,6 +18,17 @@ Le petit panneau se déplace à gauche ou à droite, se replie en un bouton de 4
 thème clair, sombre ou système. Tout le calcul est local. ecoIA n’est pas un compteur physique : il
 met en avant une estimation centrale, puis écrit la plage possible en toutes lettres avec un niveau
 de confiance et une source.
+
+## Pourquoi utiliser ecoIA ?
+
+- **Rendre l’invisible compréhensible** : les tokens visibles deviennent des repères en eau,
+  électricité, temps de télévision et distance en voiture.
+- **Encourager des usages plus conscients** : l’utilisateur voit l’ordre de grandeur de chaque
+  interaction, de sa session et de sa journée.
+- **Rester honnête sur l’incertitude** : chaque valeur est une fourchette estimée, accompagnée d’un
+  niveau de confiance, d’une méthode et de ses limites.
+- **Préserver les conversations** : le calcul reste dans le navigateur ; aucun texte n’est envoyé
+  par ecoIA.
 
 ## Plateformes et navigateurs
 
@@ -21,13 +42,21 @@ Chromium est exercé automatiquement avec l’extension réellement chargée. Le
 construit séparément avec son format d’arrière-plan natif ; la vérification manuelle Firefox fait
 partie de la checklist de publication.
 
-## Installer facilement
+## Installer facilement — le parcours débutant
+
+| 1. Télécharger | 2. Décompresser | 3. Charger |
+| --- | --- | --- |
+| Prenez l’archive de votre navigateur dans la dernière version GitHub. | Ouvrez le fichier ZIP et conservez le dossier obtenu. | Activez le mode développeur et choisissez ce dossier. |
+
+Le guide pas à pas explique aussi les mises à jour et les erreurs fréquentes :
+**[Installer ecoIA sans connaissances techniques](docs/INSTALLATION.md)**.
 
 ### Depuis une archive publiée
 
-Lorsqu’une version GitHub est disponible, téléchargez `ecoia-chromium.zip` pour Google Chrome ou
-Microsoft Edge, ou `ecoia-firefox.zip` pour Mozilla Firefox. Comparez son empreinte SHA-256 avec le
-fichier `.sha256` associé, puis décompressez l’archive dans un dossier que vous conserverez.
+Depuis la [dernière version GitHub](https://github.com/didou92i/ecoIA/releases/latest), téléchargez
+`ecoia-chromium.zip` pour Google Chrome ou Microsoft Edge, ou `ecoia-firefox.zip` pour Mozilla
+Firefox. Comparez si vous le souhaitez son empreinte SHA-256 avec le fichier `.sha256` associé,
+puis décompressez l’archive dans un dossier que vous conserverez.
 
 Pour Google Chrome :
 
@@ -76,10 +105,18 @@ l’icône ecoIA dans la barre du navigateur ouvre ou replie aussi le panneau su
 charge.
 
 1. Laissez « Détection automatique » lorsque le panneau reconnaît le modèle affiché par la
-   plateforme. ecoIA applique alors le profil documenté correspondant, notamment pour Claude 3.5
-   Sonnet et Claude 3.5 Haiku. Si le modèle n’est pas communiqué, le panneau l’indique et utilise
-   un profil générique plus incertain. Un modèle affiché mais non documenté, daté ou suffixé utilise
-   également le profil générique : un nom proche ne constitue pas une preuve d’équivalence.
+   plateforme. ecoIA applique alors le profil documenté correspondant lorsqu’il existe, notamment
+   pour Claude 3.5 Sonnet et Claude 3.5 Haiku. Pour ChatGPT, le catalogue courant reconnaît
+   GPT-5.6 Sol, GPT-5.6 Sol Pro, GPT-5.5 Instant, GPT-5.4 Thinking, GPT-5.3 Instant et OpenAI o3,
+   d’après la revue du 19 juillet 2026. GPT-5.4 doit être revu avant le 23 juillet 2026 et o3 avant
+   le 26 août 2026 ; passé ces échéances, ecoIA les retire automatiquement des choix « courants »
+   jusqu’à une nouvelle revue.
+   Faute de coefficients environnementaux primaires propres à ces modèles, ils utilisent tous le
+   profil `openai-generic-v1`, affiché comme « proxy D ». Les pages d’aide OpenAI attestent seulement
+   les noms disponibles dans le produit, pas leur impact environnemental. Si le modèle n’est pas
+   communiqué, le panneau l’indique aussi et utilise ce profil générique plus incertain. Un modèle
+   affiché mais non documenté, daté ou suffixé utilise également un profil générique : un nom proche
+   ne constitue pas une preuve d’équivalence.
 2. Lisez `≈` comme « environ » : c’est l’estimation centrale, pas une mesure du fournisseur. La
    ligne « de … à … » écrit séparément la borne basse et la borne haute possible ; ce n’est pas une
    soustraction ni une promesse de précision.
@@ -101,6 +138,11 @@ charge.
 Une question et ses éventuels segments de réponse visibles comptent comme une seule interaction ;
 leurs textes visibles sont cumulés pour l’estimation. Consultez
 [la méthodologie](METHODOLOGY.md) et [la calibration des tokens](docs/token-calibration.md).
+
+Les noms ChatGPT évoluent plus vite que les publications environnementales. Leur catalogue local
+est donc séparé des profils d’impact et doit être revu au plus tard tous les 90 jours, ou plus tôt
+lorsqu’une entrée déclare `reviewBy`. Cette revue ne modifie jamais automatiquement les
+coefficients.
 
 Les totaux commencent à partir de l’activation d’ecoIA. Lors d’un rechargement, le tour déjà visible
 reste estimé à l’écran mais demeure entièrement hors agrégation, même si sa réponse était en cours :
@@ -155,7 +197,19 @@ projet. Consultez [CONTRIBUTING.md](CONTRIBUTING.md),
 [le guide d’adaptateur](docs/adding-an-adapter.md) et
 [le guide de profil d’impact](docs/adding-an-impact-profile.md). Les décisions d’architecture sont
 consignées dans [l’ADR 0001](docs/adr/0001-local-privacy-first-extension.md) et
-[l’ADR 0002](docs/adr/0002-evidence-gated-model-profiles.md).
+[l’ADR 0002](docs/adr/0002-evidence-gated-model-profiles.md), ainsi que dans
+[l’ADR 0003](docs/adr/0003-separate-model-catalog-from-impact-evidence.md).
+
+## Projet, gouvernance et mises à jour
+
+ecoIA est développé et maintenu par **TerritorIA — Intelligence Artificielle, Conseil & Digital**.
+Le dépôt officiel est [github.com/didou92i/ecoIA](https://github.com/didou92i/ecoIA) : son
+propriétaire conserve le contrôle des versions publiées, des corrections et de la feuille de route.
+
+Vous pouvez utiliser, étudier et adapter le code selon la licence MIT. Pour proposer une
+amélioration ou signaler une plateforme devenue incompatible, ouvrez une
+[Issue](https://github.com/didou92i/ecoIA/issues) sans joindre de prompt, de réponse ou de donnée
+personnelle non masquée.
 
 ## English summary
 
@@ -168,4 +222,5 @@ physical measurements, certified carbon accounting or regulatory data.
 ## Licence
 
 ecoIA est distribué sous licence MIT. Voir [LICENSE](LICENSE) et
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Le code peut être réutilisé selon cette licence ;
+le logo TerritorIA reste un actif de marque distinct, comme précisé dans [NOTICE](NOTICE).

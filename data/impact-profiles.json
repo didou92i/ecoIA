@@ -192,7 +192,9 @@
       "displayName": "OpenAI — profil générique",
       "platforms": ["chatgpt"],
       "modelAliases": { "aliases": [], "providerPrefixes": [] },
-      "limitations": ["Unknown OpenAI model proxied to GPT-4o with a wider uncertainty range."],
+      "limitations": [
+        "No primary model-specific environmental measurements were identified in ecoIA's reviewed sources as of 2026-07-19; this widened grade-D proxy is based on the March 2025 GPT-4o line."
+      ],
       "indicators": {
         "energyWh": {
           "estimator": "model-proxy",
@@ -587,7 +589,7 @@
     {
       "id": "perplexity-generic-v1",
       "version": 1,
-      "displayName": "Perplexity — modèle non divulgué",
+      "displayName": "Perplexity — profil générique",
       "platforms": ["perplexity"],
       "modelAliases": { "aliases": [], "providerPrefixes": [] },
       "limitations": [

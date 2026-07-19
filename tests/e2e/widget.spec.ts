@@ -3,7 +3,7 @@ import { expect, test } from "./extension.fixture";
 test("injecte le widget et présente une estimation compréhensible", async ({ extensionPage }) => {
   const widget = extensionPage.locator("eco-ia-widget");
   await expect(widget.locator("[data-status]")).toHaveText("Réponse mesurée");
-  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4o");
+  await expect(widget.locator("[data-model]")).toHaveText("GPT-5.5 Instant · proxy D");
   await expect(widget.locator("[data-input-tokens]")).toHaveText(/^≈ .+ tokens$/u);
   await expect(widget.locator("[data-water]")).toHaveText(/^≈ /u);
   await expect(widget.locator("[data-water-range]")).toHaveText(/^de .+ à .+$/u);

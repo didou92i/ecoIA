@@ -34,21 +34,30 @@ provenance du profil ; ils ne prouvent pas que le fournisseur a mesuré l’inte
 
 ## Profils et provenance
 
-Le registre machine-readable est `data/impact-profiles.json`. L’inventaire transversal des sources
-d’impact, d’équivalence automobile et de calibration des tokens est
+Le registre machine-readable des coefficients est `data/impact-profiles.json`. Le catalogue local
+des noms de modèles actuellement proposés par les produits est distinct et se trouve dans
+`data/model-catalog.json`. L’inventaire transversal de toutes leurs sources, ainsi que des sources
+d’impact, d’équivalence automobile et de calibration des tokens, est
 `data/source-inventory.json`. Une modification est refusée par les tests si un profil n’a pas de
 source HTTPS, de date, de périmètre, de limites, d’unité reconnue ou de fourchette valide. Les
 proxys circulaires sont également interdits.
 
+Une source de catalogue prouve seulement qu’un nom ou un mode est proposé dans une interface. Elle
+ne devient jamais une source de coefficient environnemental. Cette séparation est détaillée dans
+`docs/adr/0003-separate-model-catalog-from-impact-evidence.md`.
+
 ### Revue de fraîcheur des sources
 
 Chaque source de l’inventaire a une `accessedDate`. La commande `npm run source-freshness` lit
-uniquement `data/source-inventory.json` avec les bibliothèques standard de Node.js. Elle couvre les
-profils d’impact, le facteur automobile et toutes les familles de calibration des tokens. Elle
-demande une revue si une date d’accès a plus de 366 jours strictement ; une source à exactement 366
-jours reste acceptée. Les identifiants des sources à revoir sont affichés dans un ordre stable et la
-commande sort avec un code non nul. Une date source ou date de revue invalide arrête aussi la
-vérification.
+uniquement `data/source-inventory.json` et `data/model-catalog.json` avec les bibliothèques standard
+de Node.js. Elle couvre les profils d’impact, le facteur automobile, toutes les familles de
+calibration des tokens, les sources du catalogue et la date de revue du catalogue lui-même. Elle
+demande une revue après plus de 366 jours strictement pour les sources stables ; une source à
+exactement 366 jours reste acceptée. Les sources et le catalogue de modèles, plus volatils, ont une
+limite distincte de 90 jours. Une entrée peut imposer une échéance antérieure avec `reviewBy` ; elle
+cesse alors d’être présentée comme un choix courant et la vérification échoue dès cette date. Les
+identifiants à revoir sont affichés dans un ordre stable et la commande sort avec un code non nul.
+Une date source ou date de revue invalide arrête aussi la vérification.
 
 Cette commande ne télécharge aucune URL, n’écrit aucun fichier et ne modifie jamais les coefficients
 automatiquement. `npm run verify` l’exécute avant le build : une revue consiste donc à vérifier la
@@ -168,12 +177,43 @@ de ce profil. De même, la médiane « Gemini Apps » ne documente pas séparém
 Gemini 2.5 Flash. Cette politique fail-closed est détaillée dans
 `docs/adr/0002-evidence-gated-model-profiles.md`.
 
+### Catalogue ChatGPT actuel et profil d’impact
+
+Le catalogue `data/model-catalog.json`, version `2026-07-19.2`, reconnaît, lors de sa revue du
+19 juillet 2026, les choix ChatGPT
+suivants : GPT-5.6 Sol, GPT-5.6 Sol Pro, GPT-5.5 Instant, GPT-5.4 Thinking, GPT-5.3 Instant et
+OpenAI o3. Les libellés et modes associés proviennent des pages officielles
+« [GPT-5.6 in ChatGPT](https://help.openai.com/en/articles/20001354-gpt-56-in-chatgpt/) » et
+« [Model Release Notes](https://help.openai.com/en/articles/9624314-model-release-notes) »,
+consultées le 19 juillet 2026. Ces sources documentent la disponibilité et les noms dans ChatGPT ;
+elles ne publient aucun coefficient d’électricité, d’eau ou de carbone par modèle.
+
+En conséquence, ces six choix se résolvent explicitement vers `openai-generic-v1`. Ce profil est un
+proxy fondé sur la ligne GPT-4o datée de mars 2025 de *How Hungry is AI?*, avec des fourchettes
+élargies et un grade D pour chaque indicateur. L’interface affiche « proxy D » et une explication
+dans « Méthode et détails » : reconnaître le nom courant améliore le diagnostic, sans créer une
+fausse précision environnementale. Les profils GPT-4o et GPT-4.1 restent dans le registre comme
+profils scientifiques datés ; ils ne sont pas présentés comme les choix actuels de ChatGPT.
+
+Le catalogue déclare une date de revue et une limite de fraîcheur de 90 jours. Il impose aussi une
+revue de GPT-5.4 au 23 juillet 2026, date de fin annoncée dans le sélecteur ChatGPT observé pendant
+la validation, et d’OpenAI o3 au 26 août 2026, date de retrait publiée dans les notes officielles.
+À l’échéance `reviewBy`, le choix est retiré du catalogue affiché jusqu’à nouvelle revue et la CI
+échoue : l’extension préfère perdre un alias « courant » plutôt que conserver silencieusement une
+information périmée. Une mise à jour de nom ne change pas la version méthodologique tant qu’aucun
+coefficient, calcul ou périmètre d’impact n’est modifié.
+
 ## Profil générique
 
 Le profil `generic-assistant-v1` résume l’ordre de grandeur des profils opérationnels publiés avec
 une fourchette volontairement très large : 0,2–0,25× à 4–5× selon l’indicateur. Il est de confiance
-D. Perplexity l’utilise lorsque l’interface ne divulgue pas le modèle sous-jacent ; la recherche, la
-navigation et les outils non visibles ne sont alors pas comptabilisés.
+D. Perplexity l’utilise via `perplexity-generic-v1` lorsque l’interface ne divulgue pas le modèle
+sous-jacent, mais aussi lorsqu’elle affiche un nom sans preuve environnementale propre au service.
+Le nom visible reste affiché avec « proxy D ». La recherche, la récupération, la navigation et les
+outils non visibles ne sont pas comptabilisés dans cette fourchette.
+
+Le profil `openai-generic-v1` est le proxy OpenAI de grade D décrit ci-dessus. Il est distinct du
+catalogue de noms et ne constitue pas une mesure des modèles GPT-5.x ou o3.
 
 ## Équivalences pédagogiques
 

@@ -77,7 +77,9 @@ des dates `YYYY-MM-DD` calendaires avant toute copie vers `storage.session`.
 Ces données restent dans le profil du navigateur. ecoIA n’exploite aucun compte et aucun serveur.
 Le choix manuel d’un modèle est uniquement conservé en mémoire de la page, jamais dans
 `storage.local` ou `storage.session`. Il est remis à zéro lors d’un changement de conversation,
-d’une navigation ou d’un rechargement de page.
+d’une navigation ou d’un rechargement de page. Seul l’identifiant fermé du catalogue local est
+manipulé ; aucun libellé libre saisi par l’utilisateur n’est conservé. Le catalogue de modèles est
+embarqué dans l’extension et n’entraîne aucune recherche réseau en arrière-plan.
 
 ## Diagnostic local
 

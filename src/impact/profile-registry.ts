@@ -224,16 +224,6 @@ export function matchImpactProfileId(platform: PlatformId, modelLabel: string): 
   );
   if (directMatch) return directMatch.id;
 
-  if (platform === "perplexity") {
-    const underlyingModel = impactRegistry.profiles.find(
-      (profile) =>
-        profile.id !== "generic-assistant-v1" &&
-        profile.modelAliases.aliases.length > 0 &&
-        matchesStructuredAlias(profile, normalizedLabel),
-    );
-    if (underlyingModel) return underlyingModel.id;
-  }
-
   return null;
 }
 

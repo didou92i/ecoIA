@@ -1,0 +1,31 @@
+name: Proposer une amélioration
+description: Suggérer une idée pédagogique, une plateforme ou une amélioration de l’expérience.
+title: "[Idée] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: Quel besoin souhaitez-vous résoudre ?
+      description: Expliquez le problème avant de décrire une solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Votre proposition
+    validations:
+      required: true
+  - type: textarea
+    id: benefit
+    attributes:
+      label: En quoi cela aide-t-il à mieux comprendre les usages IA ?
+    validations:
+      required: true
+  - type: checkboxes
+    id: principles
+    attributes:
+      label: Principes du projet
+      options:
+        - label: Cette proposition peut fonctionner sans collecter le texte des conversations.
+          required: true

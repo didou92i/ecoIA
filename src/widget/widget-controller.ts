@@ -89,7 +89,10 @@ export class WidgetController {
     this.allowedProfileIds = new Set(options.map((option) => option.id));
     this.lastValidSelectedProfileId = selectedProfileId;
     const signature = `${platform}:${options
-      .map((option) => `${option.id}:${option.label}:${option.isGeneric ? "generic" : "specific"}`)
+      .map(
+        (option) =>
+          `${option.id}:${option.label}:${option.impactProfileId}:${option.isGeneric ? "generic" : option.isProxy ? "proxy" : "specific"}`,
+      )
       .join("|")}`;
     if (signature !== this.modelOptionsSignature) {
       const automatic = document.createElement("option");
@@ -100,7 +103,9 @@ export class WidgetController {
         element.value = option.id;
         element.textContent = option.isGeneric
           ? `${option.label} — forte incertitude`
-          : option.label;
+          : option.isProxy
+            ? `${option.label} — proxy D`
+            : option.label;
         return element;
       });
       this.elements.modelSelect.replaceChildren(automatic, ...optionElements);

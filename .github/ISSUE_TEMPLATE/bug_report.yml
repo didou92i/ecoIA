@@ -1,0 +1,70 @@
+name: Signaler un problème
+description: Aider TerritorIA à reproduire un dysfonctionnement d’ecoIA sans partager de conversation.
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Merci de ne joindre aucun prompt, aucune réponse, aucune URL de conversation ni donnée personnelle non masquée.
+  - type: dropdown
+    id: browser
+    attributes:
+      label: Navigateur
+      options:
+        - Google Chrome
+        - Microsoft Edge
+        - Mozilla Firefox
+        - Autre
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Plateforme IA
+      options:
+        - ChatGPT
+        - Claude
+        - Gemini
+        - Mistral Le Chat
+        - Perplexity
+        - Autre
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version d’ecoIA
+      placeholder: "Exemple : 0.1.0"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire
+      description: Décrivez uniquement les actions nécessaires, avec un exemple synthétique si besoin.
+      placeholder: |
+        1. J’ouvre…
+        2. Je clique…
+        3. Le panneau…
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Résultat attendu
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Résultat observé
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Confidentialité
+      options:
+        - label: J’ai masqué mes conversations, mon identité, mes URL privées et toute autre donnée personnelle.
+          required: true

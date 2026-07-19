@@ -10,7 +10,11 @@ export const chatGptSelectors: SemanticAdapterSelectors = {
     "[data-message-author-role='assistant']",
     "[data-testid^='conversation-turn-'] [data-role='assistant']",
   ],
-  modelLabels: ["[data-testid='model-switcher-dropdown-button']", "button[aria-label*='model' i]"],
+  trustedModelLabels: [
+    "[data-testid='model-switcher-dropdown-button']",
+    "button[aria-label*='model' i]",
+  ],
+  modelLabels: ["button[aria-haspopup='menu']"],
   streamingControls: ["[data-testid='stop-button']", "button[aria-label*='stop' i]"],
   interruptedTurns: ["[data-interrupted='true']", "[data-status='interrupted']"],
   excludedContent: ["[aria-hidden='true']", "[data-ecoia-exclude]", "button", "nav"],

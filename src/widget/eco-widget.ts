@@ -39,6 +39,7 @@ export interface WidgetViewModel {
     resolution: ModelResolutionSource;
     selectedProfileId: string | null;
     options: ModelProfileOption[];
+    methodNote: string;
     warning: string | null;
     selectionError: string | null;
   };
@@ -191,6 +192,7 @@ class EcoIaWidgetRuntime {
     this.elements.status.textContent = stateLabels[viewModel.state];
     this.elements.model.textContent = viewModel.modelControl.effectiveLabel;
     this.elements.detectedModel.textContent = `Détecté : ${viewModel.modelControl.detectedLabel}`;
+    this.elements.modelMethodNote.textContent = viewModel.modelControl.methodNote;
     this.elements.modelWarning.hidden = viewModel.modelControl.warning === null;
     this.elements.modelWarningText.textContent = viewModel.modelControl.warning ?? "";
     this.elements.selectionError.textContent = viewModel.modelControl.selectionError ?? "";

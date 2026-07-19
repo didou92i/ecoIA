@@ -58,9 +58,9 @@ describe("impact profile registry", () => {
     ["gemini", "Gemini Apps", "google-gemini-apps-median-v1"],
     ["gemini", "Google Gemini Apps", "google-gemini-apps-median-v1"],
     ["mistral", "Mistral Large 2", "mistral-large-2-disclosure-v1"],
-    ["perplexity", "Claude 3.7 Sonnet", "anthropic-claude-3-7-sonnet-v1"],
-    ["perplexity", "GPT-4o", "openai-gpt-4o-v1"],
-    ["perplexity", "Claude 3.5 Sonnet", "anthropic-claude-3-5-sonnet-v1"],
+    ["perplexity", "Claude 3.7 Sonnet", "perplexity-generic-v1"],
+    ["perplexity", "GPT-4o", "perplexity-generic-v1"],
+    ["perplexity", "Claude 3.5 Sonnet", "perplexity-generic-v1"],
     ["perplexity", "model not disclosed", "perplexity-generic-v1"],
   ] as const)("resolves %s / %s", (platform, model, expectedProfileId) => {
     expect(resolveImpactProfileId(platform, model)).toBe(expectedProfileId);

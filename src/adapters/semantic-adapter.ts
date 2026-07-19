@@ -8,6 +8,7 @@ export interface SemanticAdapterSelectors {
   conversationRoots: string[];
   userTurns: string[];
   assistantTurns: string[];
+  trustedModelLabels?: string[];
   modelLabels: string[];
   streamingControls: string[];
   interruptedTurns: string[];
@@ -19,6 +20,9 @@ export interface SemanticAdapterConfiguration {
   platform: PlatformId;
   defaultModelLabel: string;
   selectors: SemanticAdapterSelectors;
+  modelLabelIsRecognized?: (label: string, rawLabel: string) => boolean;
+  normalizeModelLabel?: (label: string) => string;
+  preferLatestModelLabel?: boolean;
 }
 
 function isHidden(element: Element): boolean {
@@ -59,6 +63,17 @@ function queryFirst(root: ParentNode, selectors: string[]): HTMLElement | null {
       | HTMLElement
       | undefined) ?? null
   );
+}
+
+function keepDeepestElements(elements: Element[]): Element[] {
+  const selected = new Set(elements);
+  const selectedAncestors = new Set<Element>();
+  for (const element of elements) {
+    for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+      if (selected.has(ancestor)) selectedAncestors.add(ancestor);
+    }
+  }
+  return elements.filter((candidate) => !selectedAncestors.has(candidate));
 }
 
 function textIsExcluded(node: Text, excludedSelectors: string[]): boolean {
@@ -227,7 +242,27 @@ export function createSemanticAdapter(
   return {
     platform: configuration.platform,
     detectModel(root) {
-      const observedLabel = queryFirst(root, selectors.modelLabels)?.textContent?.trim();
+      const readLabels = (modelSelectors: string[]) => {
+        const candidateLabels = queryAll(root, modelSelectors)
+          .map((element) => element.textContent?.trim() ?? "")
+          .map((rawLabel) => ({
+            rawLabel,
+            label: (configuration.normalizeModelLabel?.(rawLabel) ?? rawLabel).trim(),
+          }))
+          .filter(({ label }) => label.length > 0 && label.length <= 128);
+        return configuration.preferLatestModelLabel
+          ? candidateLabels.slice().reverse()
+          : candidateLabels;
+      };
+      const trustedLabels = readLabels(selectors.trustedModelLabels ?? []);
+      const fallbackLabels = readLabels(selectors.modelLabels);
+      const observedLabel =
+        trustedLabels[0]?.label ??
+        (configuration.modelLabelIsRecognized
+          ? fallbackLabels.find(({ label, rawLabel }) =>
+              configuration.modelLabelIsRecognized?.(label, rawLabel),
+            )?.label
+          : fallbackLabels[0]?.label);
       return observedLabel
         ? { label: observedLabel, observed: true }
         : { label: configuration.defaultModelLabel, observed: false };
@@ -236,7 +271,8 @@ export function createSemanticAdapter(
       return queryFirst(document, selectors.conversationRoots);
     },
     readLatestTurn(root): VisibleTurnSnapshot | null {
-      const assistants = queryAll(root, selectors.assistantTurns);
+      const assistantCandidates = queryAll(root, selectors.assistantTurns);
+      const assistants = keepDeepestElements(assistantCandidates);
       const assistant = assistants.at(-1);
       if (!assistant) return null;
       const user = queryAll(root, selectors.userTurns)
@@ -250,13 +286,21 @@ export function createSemanticAdapter(
         .filter(Boolean)
         .join(" ");
       if (!promptText && !responseText) return null;
-      const interrupted = selectors.interruptedTurns.some(
-        (selector) => assistant.matches(selector) || assistant.querySelector(selector),
+      const assistantStateElements = assistantCandidates.filter(
+        (candidate) => candidate === assistant || candidate.contains(assistant),
+      );
+      const interrupted = selectors.interruptedTurns.some((selector) =>
+        assistantStateElements.some(
+          (candidate) => candidate.matches(selector) || candidate.querySelector(selector),
+        ),
       );
       const streaming =
         !interrupted &&
-        (assistant.getAttribute("aria-busy") === "true" ||
-          assistant.getAttribute("data-is-streaming") === "true" ||
+        (assistantStateElements.some(
+          (candidate) =>
+            candidate.getAttribute("aria-busy") === "true" ||
+            candidate.getAttribute("data-is-streaming") === "true",
+        ) ||
           queryFirst(root, selectors.streamingControls) !== null);
       return {
         turnElement: user,

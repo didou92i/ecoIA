@@ -57,4 +57,19 @@ describe("built browser artifacts", () => {
     );
     expect(archive.toString("utf8")).not.toContain("127.0.0.1");
   });
+
+  it.each(["chromium", "firefox"])(
+    "keeps platform-specific model detection in the %s runtime",
+    async (target) => {
+      const targetRoot = path.join(projectRoot, "dist", target, "content");
+      const [core, perplexity] = await Promise.all([
+        readFile(path.join(targetRoot, "core.js"), "utf8"),
+        readFile(path.join(targetRoot, "perplexity.js"), "utf8"),
+      ]);
+
+      expect(core).toContain("__ecoIARecognizeModelLabel");
+      expect(perplexity).toContain("Prepared with");
+      expect(perplexity).toContain("preferLatestModelLabel");
+    },
+  );
 });

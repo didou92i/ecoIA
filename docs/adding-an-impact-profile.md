@@ -49,3 +49,25 @@ entre énergie, eau et carbone.
 
 Une mise à jour de valeur existante crée une nouvelle version méthodologique ; elle ne réécrit pas
 silencieusement le sens d’un profil publié.
+
+## Mettre à jour seulement un nom de modèle actuel
+
+Un nouveau nom dans l’interface d’un fournisseur n’est pas, à lui seul, un nouveau profil d’impact.
+Si une source officielle documente le nom ou le mode disponible sans publier de coefficients
+environnementaux propres à ce modèle :
+
+1. ajouter ou mettre à jour l’entrée fermée dans `data/model-catalog.json` ;
+2. référencer la source officielle avec la catégorie `model-catalog` dans
+   `data/source-inventory.json` ;
+3. faire pointer l’entrée vers le profil générique de grade D compatible avec la plateforme ;
+4. conserver un appariement exact et des alias limités aux libellés réellement observés ;
+5. si un retrait, une fin de disponibilité ou une revue anticipée est déjà annoncé, ajouter
+   `reviewBy` avec sa date ISO ; à cette date l’alias cesse d’être présenté comme courant jusqu’à
+   nouvelle revue ;
+6. ajouter les tests positifs et fail-closed du catalogue, puis vérifier la revue de fraîcheur à
+   90 jours et toute échéance antérieure.
+
+La source commerciale prouve alors seulement l’identité du choix courant. Elle ne doit pas être
+réutilisée comme source d’électricité, d’eau ou de carbone. Une telle mise à jour ne change pas la
+version méthodologique si les coefficients et leur périmètre restent identiques. Voir
+`docs/adr/0003-separate-model-catalog-from-impact-evidence.md`.

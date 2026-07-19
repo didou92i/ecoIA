@@ -35,14 +35,18 @@ function upperTokenBound(value: string | null): number {
   return Number(match[1].replace(/\s/gu, ""));
 }
 
-test("résout GPT-4o automatiquement et explique exactement le modèle manquant", async ({
+test("résout GPT-5.5 Instant automatiquement et explique exactement le modèle manquant", async ({
   extensionContext,
   fixtureOrigin,
 }) => {
   const observedPage = await openFixturePage(extensionContext, fixtureOrigin, "/observed-model");
   const observedWidget = observedPage.locator("eco-ia-widget");
-  await expect(observedWidget.locator("[data-model]")).toHaveText("OpenAI GPT-4o");
+  await expect(observedWidget.locator("[data-model]")).toHaveText("GPT-5.5 Instant · proxy D");
   await expect(observedWidget.locator("[data-model-warning]")).toBeHidden();
+  await observedWidget.getByText("Méthode et détails", { exact: true }).click();
+  await expect(observedWidget.locator("[data-model-method-note]")).toContainText(
+    "Aucune donnée environnementale propre à GPT-5.5 Instant",
+  );
 
   const missingPage = await openFixturePage(extensionContext, fixtureOrigin, "/missing-model");
   const missingWidget = missingPage.locator("eco-ia-widget");
@@ -68,16 +72,24 @@ test("applique un profil compatible au même tour sans créer une seconde intera
   const modelSelect = widget.getByRole("combobox", { name: "Modèle appliqué" });
   await expect(modelSelect.locator("option")).toHaveText([
     "Détection automatique",
-    "OpenAI GPT-4.1",
-    "OpenAI GPT-4o",
+    "GPT-5.6 Sol — proxy D",
+    "GPT-5.6 Sol Pro — proxy D",
+    "GPT-5.5 Instant — proxy D",
+    "GPT-5.4 Thinking — proxy D",
+    "GPT-5.3 Instant — proxy D",
+    "OpenAI o3 — proxy D",
     "OpenAI — profil générique — forte incertitude",
   ]);
   await expect(widget.locator("[data-session]")).toContainText("1 interaction");
 
-  await modelSelect.selectOption("openai-gpt-4-1-v1");
-  await expect(modelSelect).toHaveValue("openai-gpt-4-1-v1");
-  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4.1");
+  await modelSelect.selectOption("chatgpt-gpt-5-6-sol");
+  await expect(modelSelect).toHaveValue("chatgpt-gpt-5-6-sol");
+  await expect(widget.locator("[data-model]")).toHaveText("GPT-5.6 Sol · proxy D");
+  await expect(widget.locator("[data-model-method-note]")).toContainText(
+    "Aucune donnée environnementale propre à GPT-5.6 Sol",
+  );
   await expect(widget.locator("[data-diagnostics]")).toContainText("Modèle · Manuel");
+  await expect(widget.locator("[data-quality-overall]")).toContainText("Qualité des données · D");
   await expect(widget.locator("[data-session]")).toContainText("1 interaction");
   await page.close();
 });
@@ -90,8 +102,8 @@ test("réinitialise le choix manuel après navigation SPA et après rechargement
   const widget = page.locator("eco-ia-widget");
   await widget.getByText("Méthode et détails", { exact: true }).click();
   const modelSelect = widget.getByRole("combobox", { name: "Modèle appliqué" });
-  await modelSelect.selectOption("openai-gpt-4-1-v1");
-  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4.1");
+  await modelSelect.selectOption("chatgpt-gpt-5-6-sol");
+  await expect(widget.locator("[data-model]")).toHaveText("GPT-5.6 Sol · proxy D");
 
   await page.evaluate(() => {
     const conversation = document.querySelector<HTMLElement>("[data-conversation-id]");
@@ -102,15 +114,15 @@ test("réinitialise le choix manuel après navigation SPA et après rechargement
     answer.textContent += " Nouvelle conversation synthétique.";
   });
   await expect(modelSelect).toHaveValue("");
-  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4o");
+  await expect(widget.locator("[data-model]")).toHaveText("GPT-5.5 Instant · proxy D");
   await expect(widget.locator("[data-diagnostics]")).toContainText("Modèle · Automatique");
 
-  await modelSelect.selectOption("openai-gpt-4-1-v1");
-  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4.1");
+  await modelSelect.selectOption("chatgpt-gpt-5-6-sol");
+  await expect(widget.locator("[data-model]")).toHaveText("GPT-5.6 Sol · proxy D");
   await page.reload();
   await expect(widget).toBeVisible();
   await expect(widget.locator("[data-status]")).toHaveText("Réponse mesurée");
-  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4o");
+  await expect(widget.locator("[data-model]")).toHaveText("GPT-5.5 Instant · proxy D");
   await widget.getByText("Méthode et détails", { exact: true }).click();
   await expect(widget.getByRole("combobox", { name: "Modèle appliqué" })).toHaveValue("");
   await page.close();
@@ -128,8 +140,8 @@ test("réinitialise la session quand une conversation SPA revient à la route ra
   const widget = page.locator("eco-ia-widget");
   await widget.getByText("Méthode et détails", { exact: true }).click();
   const modelSelect = widget.getByRole("combobox", { name: "Modèle appliqué" });
-  await modelSelect.selectOption("openai-gpt-4-1-v1");
-  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4.1");
+  await modelSelect.selectOption("chatgpt-gpt-5-6-sol");
+  await expect(widget.locator("[data-model]")).toHaveText("GPT-5.6 Sol · proxy D");
 
   await page.evaluate(() => {
     const conversation = document.querySelector<HTMLElement>("[data-conversation-id]");
@@ -141,7 +153,7 @@ test("réinitialise la session quand une conversation SPA revient à la route ra
   });
 
   await expect(modelSelect).toHaveValue("");
-  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4o");
+  await expect(widget.locator("[data-model]")).toHaveText("GPT-5.5 Instant · proxy D");
   await expect(widget.locator("[data-diagnostics]")).toContainText("Modèle · Automatique");
   await expect(widget.locator("[data-session]")).toHaveText("Aucune donnée");
   await page.close();
