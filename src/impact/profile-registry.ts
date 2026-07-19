@@ -169,6 +169,7 @@ export function validateImpactRegistry(value: unknown): ImpactRegistry {
       profileIds.has(profile.id) ||
       !Number.isSafeInteger(profile.version) ||
       (profile.version as number) < 1 ||
+      (profile.derivationId !== undefined && !isIdentifier(profile.derivationId)) ||
       !isNonEmptyString(profile.displayName) ||
       !Array.isArray(profile.platforms) ||
       profile.platforms.length === 0 ||

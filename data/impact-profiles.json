@@ -95,11 +95,12 @@
     {
       "id": "openai-gpt-4o-v1",
       "version": 1,
+      "derivationId": "how-hungry-v6",
       "displayName": "OpenAI GPT-4o",
       "platforms": ["chatgpt"],
       "modelAliases": { "aliases": ["gpt 4o"], "providerPrefixes": ["openai"] },
       "limitations": [
-        "Exact non-negative affine fit of three v6 query-shape means; not an OpenAI measurement.",
+        "Exact non-negative affine fit of the dated source row GPT-4o (Mar '25); not an OpenAI measurement of every GPT-4o snapshot.",
         "Operational scope only and unknown production batch size."
       ],
       "indicators": {
@@ -141,6 +142,7 @@
     {
       "id": "openai-gpt-4-1-v1",
       "version": 1,
+      "derivationId": "how-hungry-v6",
       "displayName": "OpenAI GPT-4.1",
       "platforms": ["chatgpt"],
       "modelAliases": { "aliases": ["gpt 4 1"], "providerPrefixes": ["openai"] },
@@ -227,6 +229,7 @@
     {
       "id": "anthropic-claude-3-7-sonnet-v1",
       "version": 1,
+      "derivationId": "how-hungry-v6",
       "displayName": "Anthropic Claude 3.7 Sonnet",
       "platforms": ["claude"],
       "modelAliases": {
@@ -276,6 +279,7 @@
     {
       "id": "anthropic-claude-3-5-sonnet-v1",
       "version": 1,
+      "derivationId": "how-hungry-v6",
       "displayName": "Anthropic Claude 3.5 Sonnet",
       "platforms": ["claude"],
       "modelAliases": {
@@ -325,6 +329,7 @@
     {
       "id": "anthropic-claude-3-5-haiku-v1",
       "version": 1,
+      "derivationId": "how-hungry-v6",
       "displayName": "Anthropic Claude 3.5 Haiku",
       "platforms": ["claude"],
       "modelAliases": {

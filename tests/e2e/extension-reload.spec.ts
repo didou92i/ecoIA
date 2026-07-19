@@ -21,3 +21,17 @@ test("suspend proprement l'ancien script après le rechargement de l'extension",
 
   await expect(widget.locator("[data-status]")).toHaveText("Mesure en pause");
 });
+
+test("ne recompte pas une réponse terminée après rechargement de la page", async ({
+  extensionPage,
+}) => {
+  const widget = extensionPage.locator("eco-ia-widget");
+  await expect(widget.locator("[data-day]")).toContainText("1 interaction");
+
+  await extensionPage.reload();
+
+  await expect(widget).toBeVisible();
+  await expect(widget.locator("[data-status]")).toHaveText("Réponse mesurée");
+  await expect(widget.locator("[data-day]")).toContainText("1 interaction");
+  await expect(widget.locator("[data-session]")).toHaveText("Aucune donnée");
+});

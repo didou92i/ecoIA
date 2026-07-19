@@ -183,6 +183,26 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       expect(options.adapter.getConversationMarker(document)).toBe("nested-explicit-marker");
     });
 
+    it("keeps one canonical identity while an explicit marker temporarily disappears", () => {
+      history.replaceState(null, "", "/c/stable-fixture-marker");
+      const marker = document.querySelector(`[${options.markerAttribute}]`);
+      if (!marker) throw new Error("MISSING_MARKER_FIXTURE");
+      marker.setAttribute(options.markerAttribute, "stable-fixture-marker");
+      const before = options.adapter.getConversationMarker(document);
+
+      marker.removeAttribute(options.markerAttribute);
+      const temporarilyMissing = options.adapter.getConversationMarker(document);
+      marker.setAttribute(options.markerAttribute, "stable-fixture-marker");
+      const restored = options.adapter.getConversationMarker(document);
+
+      expect(temporarilyMissing).toBe(before);
+      expect(restored).toBe(before);
+
+      history.pushState(null, "", "/");
+      marker.removeAttribute(options.markerAttribute);
+      expect(options.adapter.getConversationMarker(document)).toBeNull();
+    });
+
     it("fails closed on unknown markup", () => {
       loadFixture(options.platform, "unknown");
       const root = options.adapter.findConversationRoot(document);

@@ -31,12 +31,33 @@
   "models": [
     {
       "profileId": "openai-gpt-4o-v1",
-      "label": "GPT-4o",
+      "label": "GPT-4o (Mar '25)",
       "provider": "openaiAzure",
       "energyWh": [
-        { "mean": 0.423, "standardDeviation": 0.085 },
-        { "mean": 1.215, "standardDeviation": 0.241 },
-        { "mean": 2.875, "standardDeviation": 0.421 }
+        {
+          "meanRaw": "0.423",
+          "meanNormalized": 0.423,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.085",
+          "standardDeviationNormalized": 0.085,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        },
+        {
+          "meanRaw": "1.215",
+          "meanNormalized": 1.215,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.241",
+          "standardDeviationNormalized": 0.241,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        },
+        {
+          "meanRaw": "2.875",
+          "meanNormalized": 2.875,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.421",
+          "standardDeviationNormalized": 0.421,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        }
       ]
     },
     {
@@ -44,9 +65,30 @@
       "label": "GPT-4.1",
       "provider": "openaiAzure",
       "energyWh": [
-        { "mean": 0.871, "standardDeviation": 0.302 },
-        { "mean": 3.161, "standardDeviation": 0.515 },
-        { "mean": 4.833, "standardDeviation": 0.65 }
+        {
+          "meanRaw": "0.871",
+          "meanNormalized": 0.871,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.302",
+          "standardDeviationNormalized": 0.302,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        },
+        {
+          "meanRaw": "3.161",
+          "meanNormalized": 3.161,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0515",
+          "standardDeviationNormalized": 0.515,
+          "standardDeviationNormalizationStatus": "inferred-missing-decimal-point"
+        },
+        {
+          "meanRaw": "4.833",
+          "meanNormalized": 4.833,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.650",
+          "standardDeviationNormalized": 0.65,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        }
       ]
     },
     {
@@ -54,9 +96,30 @@
       "label": "Claude 3.7 Sonnet",
       "provider": "anthropicAws",
       "energyWh": [
-        { "mean": 0.95, "standardDeviation": 0.04 },
-        { "mean": 2.989, "standardDeviation": 0.201 },
-        { "mean": 5.671, "standardDeviation": 0.302 }
+        {
+          "meanRaw": "0.950",
+          "meanNormalized": 0.95,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.040",
+          "standardDeviationNormalized": 0.04,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        },
+        {
+          "meanRaw": "2.989",
+          "meanNormalized": 2.989,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.201",
+          "standardDeviationNormalized": 0.201,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        },
+        {
+          "meanRaw": "5.671",
+          "meanNormalized": 5.671,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.302",
+          "standardDeviationNormalized": 0.302,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        }
       ]
     },
     {
@@ -64,9 +127,30 @@
       "label": "Claude 3.5 Sonnet",
       "provider": "anthropicAws",
       "energyWh": [
-        { "mean": 0.973, "standardDeviation": 0.066 },
-        { "mean": 3.638, "standardDeviation": 0.256 },
-        { "mean": 7.772, "standardDeviation": 0.345 }
+        {
+          "meanRaw": "0.973",
+          "meanNormalized": 0.973,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.066",
+          "standardDeviationNormalized": 0.066,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        },
+        {
+          "meanRaw": "3.638",
+          "meanNormalized": 3.638,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.256",
+          "standardDeviationNormalized": 0.256,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        },
+        {
+          "meanRaw": "7.772",
+          "meanNormalized": 7.772,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.345",
+          "standardDeviationNormalized": 0.345,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        }
       ]
     },
     {
@@ -74,13 +158,34 @@
       "label": "Claude 3.5 Haiku",
       "provider": "anthropicAws",
       "energyWh": [
-        { "mean": 0.975, "standardDeviation": 0.063 },
-        { "mean": 4.464, "standardDeviation": 0.283 },
-        { "mean": 8.01, "standardDeviation": 0.338 }
+        {
+          "meanRaw": "0.975",
+          "meanNormalized": 0.975,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.063",
+          "standardDeviationNormalized": 0.063,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        },
+        {
+          "meanRaw": "4.464",
+          "meanNormalized": 4.464,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.283",
+          "standardDeviationNormalized": 0.283,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        },
+        {
+          "meanRaw": "8.010",
+          "meanNormalized": 8.01,
+          "meanNormalizationStatus": "exact-decimal-transcription",
+          "standardDeviationRaw": "0.338",
+          "standardDeviationNormalized": 0.338,
+          "standardDeviationNormalizationStatus": "exact-decimal-transcription"
+        }
       ]
     }
   ],
   "normalizationNotes": [
-    "The v6 HTML rendering shows 0515 for the GPT-4.1 medium-shape standard deviation; the fixture records the normalized 0.515 value from the source table context."
+    "The v6 HTML rendering literally shows 0515 for the GPT-4.1 medium-shape standard deviation. The raw string is preserved and 0.515 is an explicit inferred missing-decimal-point normalization. Coefficient derivation uses means only."
   ]
 }

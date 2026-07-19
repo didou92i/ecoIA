@@ -56,6 +56,27 @@ describe("open-source documentation", () => {
     expect(await read("SECURITY.md")).toContain("Report a vulnerability");
   });
 
+  it("documents the bounded numeric recovery journal and its cleanup policy", async () => {
+    const privacy = await read("PRIVACY.md");
+    expect(privacy).toContain("`ecoia.journal.v1`");
+    expect(privacy).toContain("256");
+    expect(privacy).toMatch(/métadonnées éphémères bornées/iu);
+    expect(privacy).toMatch(/aucun prompt|pas de prompt/iu);
+    expect(privacy).toMatch(/aucune réponse|pas de réponse/iu);
+    expect(privacy).toMatch(/aucune URL|pas d.URL/iu);
+    expect(privacy).toMatch(/reprise/iu);
+    expect(privacy).toMatch(/invalide|invalid/iu);
+    expect(privacy).toMatch(/expir/iu);
+  });
+
+  it("states that totals start at activation and bounds session-key retention", async () => {
+    const [readme, privacy] = await Promise.all([read("README.md"), read("PRIVACY.md")]);
+    expect(`${readme}\n${privacy}`).toMatch(/à partir de l.activation/iu);
+    expect(privacy).toContain("`ecoia.sessions.v1`");
+    expect(privacy).toMatch(/30 minutes/iu);
+    expect(privacy).toMatch(/traitement suivant/iu);
+  });
+
   it("ships the MIT license and discloses the AI Wattch boundary", async () => {
     expect(await read("LICENSE")).toContain("MIT License");
     const notices = `${await read("NOTICE")}\n${await read("THIRD_PARTY_NOTICES.md")}`;

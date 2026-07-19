@@ -1,4 +1,4 @@
-import { expect, test } from "./extension.fixture";
+import { activateFixtureInteraction, expect, test } from "./extension.fixture";
 
 test("ignore les tours de contexte et regroupe les étapes assistant du tour courant", async ({
   extensionPage,
@@ -35,6 +35,7 @@ test("agrège deux onglets sans conserver les textes ni les identifiants de page
   await secondPage.goto(`${fixtureOrigin}/second`);
   const secondWidget = secondPage.locator("eco-ia-widget");
   await expect(secondWidget).toBeVisible();
+  await activateFixtureInteraction(secondPage);
   await expect(secondWidget.locator("[data-session]")).toContainText("1 interaction");
   await expect(secondWidget.locator("[data-day]")).toContainText("2 interactions");
 

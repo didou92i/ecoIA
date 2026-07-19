@@ -23,3 +23,11 @@ export declare function deriveImpactCoefficients(fixture: unknown): {
 };
 
 export declare function readSourceFixture(): Promise<unknown>;
+
+export declare function validateSourceFixture(fixture: unknown): Record<string, unknown>;
+
+export declare function findRegistryDrift(
+  registry: unknown,
+  derived: { profiles: Record<string, DerivedProfile> },
+  derivationId: string,
+): string[];

@@ -106,9 +106,18 @@ Source : https://arxiv.org/abs/2505.09598v6
 
 La première publication est datée du 14 mai 2025 ; les données utilisées proviennent de la révision
 v6 du 24 novembre 2025, consultée le 19 juillet 2026. La transcription locale
-`data/how-hungry-ai-v6.json` conserve les 15 moyennes et les 15 écarts-types du tableau 4 pour
-GPT-4o, GPT-4.1, Claude 3.7 Sonnet, Claude 3.5 Sonnet et Claude 3.5 Haiku, ainsi que les formes de
-requêtes et les paramètres d’infrastructure du tableau 1.
+`data/how-hungry-ai-v6.json` conserve séparément la chaîne brute et la valeur numérique normalisée
+des 15 moyennes et des 15 écarts-types du tableau 4, ainsi que les formes de requêtes et les
+paramètres d’infrastructure du tableau 1. Le libellé source exact `GPT-4o (Mar '25)` désigne un
+snapshot daté de GPT-4o ; l’alias runtime `gpt 4o` ne prétend pas étendre la mesure à toutes les
+versions historiques ou futures portant ce nom.
+
+Le rendu HTML v6 écrit littéralement `0515` pour l’écart-type de GPT-4.1 sur la forme moyenne. La
+fixture préserve donc `standardDeviationRaw: "0515"` et consigne séparément
+`standardDeviationNormalized: 0.515` avec le statut explicite
+`inferred-missing-decimal-point`. Cette normalisation est une inférence de transcription, pas une
+valeur brute publiée. La dérivation des coefficients dépend uniquement des moyennes normalisées ;
+aucun écart-type n’entre dans l’ajustement.
 
 Les valeurs d’énergie centrales publiées sont ajustées à la forme non négative :
 

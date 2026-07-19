@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { expect, test } from "./extension.fixture";
+import { activateFixtureInteraction, expect, test } from "./extension.fixture";
 
 test("rejette les routes locales hors allowlist", async ({ fixtureOrigin }) => {
   const response = await fetch(`${fixtureOrigin}/telemetry`);
@@ -50,6 +50,7 @@ test("ne contacte aucun réseau distant et ne persiste ni texte ni choix de mod�
   await page.goto(allowedNavigationUrl);
   const widget = page.locator("eco-ia-widget");
   await expect(widget.locator("[data-status]")).toHaveText("Réponse mesurée");
+  await activateFixtureInteraction(page);
   await widget.getByText("Méthode et détails", { exact: true }).click();
   await widget.getByRole("combobox", { name: "Modèle appliqué" }).selectOption("openai-gpt-4-1-v1");
   await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4.1");

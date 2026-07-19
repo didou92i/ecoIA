@@ -6,6 +6,7 @@ import { AggregateStore } from "../../src/storage/aggregate-store";
 
 class MemoryStorageArea implements ExtensionStorageArea {
   readonly values: Record<string, unknown> = {};
+  readonly setCalls: Array<Record<string, unknown>> = [];
 
   async get(keys: string | string[] | null = null): Promise<Record<string, unknown>> {
     await Promise.resolve();
@@ -18,6 +19,7 @@ class MemoryStorageArea implements ExtensionStorageArea {
 
   async set(values: Record<string, unknown>): Promise<void> {
     await Promise.resolve();
+    this.setCalls.push(structuredClone(values));
     Object.assign(this.values, structuredClone(values));
   }
 
@@ -188,16 +190,17 @@ describe("aggregate store", () => {
     expect(Object.keys(session.values).sort()).toEqual([
       "ecoia.events.tab-1.v1",
       "ecoia.session.tab-1.v1",
+      "ecoia.sessions.v1",
     ]);
     const serialized = JSON.stringify({ local: local.values, session: session.values });
     expect(serialized).not.toMatch(/prompt|response|conversationId|https?:\/\//i);
     expect(serialized).not.toContain("estimated");
   });
 
-  it("recovers a local-success session-failure write and counts the retry exactly once", async () => {
+  it("recovers a local-success session-failure in a recreated MV3 store exactly once", async () => {
     const local = new MemoryStorageArea();
     const session = new FailOnceStorageArea();
-    const store = new AggregateStore({
+    const store1 = new AggregateStore({
       local,
       session,
       now: () => 1_721_318_400_000,
@@ -205,20 +208,104 @@ describe("aggregate store", () => {
     });
     const numericEvent = event("event-retry", "tab-retry", 1, 100, "chatgpt", "completed");
 
-    await expect(store.processEvent(numericEvent)).rejects.toThrow(
+    await expect(store1.processEvent(numericEvent)).rejects.toThrow(
       "SIMULATED_SESSION_WRITE_FAILURE",
     );
     expect(local.values).toHaveProperty("ecoia.journal.v1");
     expect(JSON.stringify(local.values)).not.toMatch(/prompt|response|conversation|https?:\/\//iu);
 
-    await expect(store.processEvent(numericEvent)).resolves.toEqual({
+    const store2 = new AggregateStore({
+      local,
+      session,
+      now: () => 1_721_318_400_000,
+      localDate: () => "2026-07-18",
+    });
+    await expect(store2.processEvent(numericEvent)).resolves.toEqual({
       status: "ignored",
       reason: "DUPLICATE_OR_OUT_OF_ORDER",
     });
-    expect(await store.getSessionAggregate("tab-retry")).toMatchObject({ interactionCount: 1 });
-    expect(await store.getDayAggregate()).toMatchObject({ interactionCount: 1 });
+    expect(await store2.getSessionAggregate("tab-retry")).toMatchObject({ interactionCount: 1 });
+    expect(await store2.getDayAggregate()).toMatchObject({ interactionCount: 1 });
     expect(local.values).not.toHaveProperty("ecoia.journal.v1");
   });
+
+  it("expires an unrecovered journal after 24 hours instead of replaying a stale session", async () => {
+    const local = new MemoryStorageArea();
+    const session = new FailOnceStorageArea();
+    let timestamp = 1_721_318_400_000;
+    let localDate = "2026-07-18";
+    const store1 = new AggregateStore({
+      local,
+      session,
+      now: () => timestamp,
+      localDate: () => localDate,
+    });
+    await expect(
+      store1.processEvent(event("event-expired", "tab-expired", 1, 100, "chatgpt", "completed")),
+    ).rejects.toThrow("SIMULATED_SESSION_WRITE_FAILURE");
+
+    timestamp += 24 * 60 * 60 * 1_000 + 1;
+    localDate = "2026-07-19";
+    const store2 = new AggregateStore({
+      local,
+      session,
+      now: () => timestamp,
+      localDate: () => localDate,
+    });
+    await store2.processEvent(event("event-current", "tab-current", 1, 50, "chatgpt", "completed"));
+
+    expect(local.values).not.toHaveProperty("ecoia.journal.v1");
+    expect(session.setCalls.some((values) => "ecoia.session.tab-expired.v1" in values)).toBe(false);
+    expect(session.values).not.toHaveProperty("ecoia.session.tab-expired.v1");
+    expect(await store2.getDayAggregate()).toMatchObject({
+      localDate: "2026-07-19",
+      interactionCount: 1,
+    });
+  });
+
+  it.each(["private-local-date", "private-metadata"])(
+    "discards an otherwise valid recovery journal containing %s",
+    async (variant) => {
+      const local = new MemoryStorageArea();
+      const session = new FailOnceStorageArea();
+      const store1 = new AggregateStore({
+        local,
+        session,
+        now: () => 1_721_318_400_000,
+        localDate: () => "2026-07-18",
+      });
+      const numericEvent = event("event-private", "tab-private", 1, 100, "chatgpt", "completed");
+      await expect(store1.processEvent(numericEvent)).rejects.toThrow(
+        "SIMULATED_SESSION_WRITE_FAILURE",
+      );
+      const journal = local.values["ecoia.journal.v1"] as {
+        eventState: { events: Array<Record<string, unknown>> };
+        metadata?: unknown;
+      };
+      const privateValue = `https://private.example/${"secret".repeat(100)}`;
+      if (variant === "private-local-date") {
+        const firstEvent = journal.eventState.events[0];
+        if (!firstEvent) throw new Error("MISSING_RECOVERY_EVENT_FIXTURE");
+        firstEvent.localDate = privateValue;
+      } else {
+        journal.metadata = privateValue;
+      }
+
+      const store2 = new AggregateStore({
+        local,
+        session,
+        now: () => 1_721_318_400_000,
+        localDate: () => "2026-07-18",
+      });
+      await store2.processEvent(numericEvent);
+
+      expect(local.values).not.toHaveProperty("ecoia.journal.v1");
+      expect(JSON.stringify({ local: local.values, session: session.values })).not.toContain(
+        privateValue,
+      );
+      expect((await store2.getDayAggregate()).interactionCount).toBe(1);
+    },
+  );
 
   it("strictly discards a text-bearing or malformed recovery journal", async () => {
     const { local, session, store } = createStore();
@@ -246,6 +333,70 @@ describe("aggregate store", () => {
     const events = session.values["ecoia.events.tab-1.v1"] as { events: unknown[] };
     expect(deduplication.entries).toHaveLength(256);
     expect(events.events).toHaveLength(256);
+  });
+
+  it("rejects sequence zero defensively before any persistence", async () => {
+    const { local, session, store } = createStore();
+    await expect(
+      store.processEvent({ ...event("event-zero", "tab-zero", 1, 10), sequence: 0 }),
+    ).rejects.toThrow("INVALID_EVENT_SEQUENCE");
+    expect(local.values).toEqual({});
+    expect(session.values).toEqual({});
+  });
+
+  it.each(["2026-02-30", "https://private.example/secret", "2026-7-1"])(
+    "rejects invalid current local date %s without persistence",
+    async (localDate) => {
+      const { local, session, store } = createStore(localDate);
+      await expect(store.processEvent(event("event-date", "tab-date", 1, 10))).rejects.toThrow(
+        "INVALID_LOCAL_DATE",
+      );
+      expect(local.values).toEqual({});
+      expect(session.values).toEqual({});
+    },
+  );
+
+  it("bounds active storage.session keys and purges evicted session pairs", async () => {
+    const local = new MemoryStorageArea();
+    const session = new MemoryStorageArea();
+    let timestamp = 1_721_318_400_000;
+    const store = new AggregateStore({
+      local,
+      session,
+      now: () => timestamp++,
+      localDate: () => "2026-07-18",
+    });
+    for (let index = 0; index < 40; index += 1) {
+      await store.processEvent(event(`event-session-${index}`, `tab-${index}`, 1, 1));
+    }
+
+    const registry = session.values["ecoia.sessions.v1"] as { entries: unknown[] };
+    expect(registry.entries).toHaveLength(32);
+    expect(Object.keys(session.values)).toHaveLength(65);
+    expect(session.values).not.toHaveProperty("ecoia.session.tab-0.v1");
+    expect(session.values).not.toHaveProperty("ecoia.events.tab-0.v1");
+  });
+
+  it("purges expired active sessions on the next processing operation", async () => {
+    const local = new MemoryStorageArea();
+    const session = new MemoryStorageArea();
+    let timestamp = 1_721_318_400_000;
+    const store = new AggregateStore({
+      local,
+      session,
+      now: () => timestamp,
+      localDate: () => "2026-07-18",
+    });
+    await store.processEvent(event("event-old", "tab-old", 1, 10));
+    timestamp += 24 * 60 * 60 * 1_000 + 1;
+    await store.processEvent(event("event-new", "tab-new", 1, 10));
+
+    expect(session.values).not.toHaveProperty("ecoia.session.tab-old.v1");
+    expect(session.values).not.toHaveProperty("ecoia.events.tab-old.v1");
+    expect(session.values["ecoia.sessions.v1"]).toEqual({
+      version: 1,
+      entries: [{ tabSessionId: "tab-new", lastSeen: timestamp }],
+    });
   });
 
   it("uses bounded in-memory session storage when storage.session is unavailable", async () => {

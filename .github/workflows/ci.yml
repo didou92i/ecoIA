@@ -31,6 +31,8 @@ jobs:
         run: npm run typecheck
       - name: Unit and adapter tests
         run: npm test
+      - name: Reproducible impact coefficients
+        run: npm run impact-coefficients
       - name: Quantitative source freshness
         run: npm run source-freshness
       - name: Chromium extension journeys

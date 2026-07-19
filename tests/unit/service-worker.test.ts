@@ -8,7 +8,7 @@ import type {
 import { registerServiceWorker } from "../../src/background/service-worker";
 
 class MemoryStorageArea implements ExtensionStorageArea {
-  private readonly values: Record<string, unknown> = {};
+  readonly values: Record<string, unknown> = {};
 
   async get(keys: string | string[] | null = null): Promise<Record<string, unknown>> {
     if (keys === null) return structuredClone(this.values);
@@ -146,6 +146,23 @@ describe("service worker message boundary", () => {
     });
     expect(response).toEqual({ ok: false, error: "INVALID_MESSAGE" });
     expect(JSON.stringify(response)).not.toContain("private prompt content");
+  });
+
+  it("rejects sequence zero without mutating local or session storage", async () => {
+    const { api, getListener } = createApi();
+    registerServiceWorker(api, {
+      now: () => 1_721_318_400_000,
+      localDate: () => "2026-07-18",
+    });
+    const listener = getListener();
+    if (!listener) throw new Error("MISSING_MESSAGE_LISTENER");
+
+    await expect(invoke(listener, { ...numericEvent(), sequence: 0 })).resolves.toEqual({
+      ok: false,
+      error: "INVALID_MESSAGE",
+    });
+    await expect(api.storage.local.get(null)).resolves.toEqual({});
+    await expect(api.storage.session?.get(null)).resolves.toEqual({});
   });
 
   it("rejects diagnostic metadata at the numeric service-worker boundary", async () => {

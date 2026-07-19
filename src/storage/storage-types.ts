@@ -57,9 +57,22 @@ export interface DeduplicationState {
   entries: DeduplicationEntry[];
 }
 
+export interface ActiveSessionEntry {
+  tabSessionId: string;
+  lastSeen: number;
+}
+
+export interface ActiveSessionState {
+  version: 1;
+  entries: ActiveSessionEntry[];
+}
+
 export interface RecoveryJournal {
   version: 1;
+  createdAt: number;
   tabSessionId: string;
   sessionAggregate: NumericAggregate;
   eventState: StoredEventState;
+  activeSessions: ActiveSessionState;
+  sessionIdsToRemove: string[];
 }

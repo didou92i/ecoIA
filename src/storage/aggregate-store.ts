@@ -3,6 +3,7 @@ import { estimateImpact } from "../impact/impact-engine";
 import type { NumericInteractionEvent, PlatformId } from "../shared/contracts";
 import { createRange, type EstimateRange } from "../shared/range";
 import type {
+  ActiveSessionState,
   DayAggregate,
   DeduplicationEntry,
   DeduplicationState,
@@ -17,8 +18,12 @@ import { WriteQueue } from "./write-queue";
 const dayStorageKey = "ecoia.day.v1";
 const deduplicationStorageKey = "ecoia.dedupe.v1";
 const recoveryJournalStorageKey = "ecoia.journal.v1";
+const activeSessionsStorageKey = "ecoia.sessions.v1";
 const maximumRecentEvents = 256;
+const maximumActiveSessions = 32;
 const deduplicationLifetimeMs = 30 * 60 * 1_000;
+const activeSessionLifetimeMs = 24 * 60 * 60 * 1_000;
+const recoveryJournalLifetimeMs = 24 * 60 * 60 * 1_000;
 const aggregateQueueKey = "ecoia-aggregate-write";
 const identifierPattern = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
 
@@ -61,6 +66,13 @@ function sessionEventsKey(tabSessionId: string): string {
   return `ecoia.events.${tabSessionId}.v1`;
 }
 
+function sessionKeys(tabSessionIds: string[]): string[] {
+  return tabSessionIds.flatMap((tabSessionId) => [
+    sessionAggregateKey(tabSessionId),
+    sessionEventsKey(tabSessionId),
+  ]);
+}
+
 function zeroRange(): EstimateRange {
   return createRange(0, 0, 0);
 }
@@ -95,6 +107,22 @@ function hasExactKeys(value: Record<string, unknown>, keys: string[]): boolean {
   return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
 }
 
+function isCalendarDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(parsed.valueOf()) && parsed.toISOString().startsWith(value);
+}
+
+function requireCalendarDate(value: string): string {
+  if (!isCalendarDate(value)) throw new Error("INVALID_LOCAL_DATE");
+  return value;
+}
+
+function requireTimestamp(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 0) throw new Error("INVALID_TIMESTAMP");
+  return value;
+}
+
 function isRange(value: unknown): value is EstimateRange {
   if (!isRecord(value)) return false;
   if (!hasExactKeys(value, ["low", "central", "high"])) return false;
@@ -108,7 +136,8 @@ function isRange(value: unknown): value is EstimateRange {
     Number.isFinite(high) &&
     low >= 0 &&
     low <= central &&
-    central <= high
+    central <= high &&
+    high <= Number.MAX_SAFE_INTEGER
   );
 }
 
@@ -157,11 +186,11 @@ export function isNumericAggregate(value: unknown): value is NumericAggregate {
     ["energyWh", "waterMl", "carbonG", "televisionSeconds", "carMeters"].every((key) =>
       isRange((value.impacts as Record<string, unknown>)[key]),
     ) &&
-    (value.localDate === undefined || typeof value.localDate === "string")
+    (value.localDate === undefined || isCalendarDate(value.localDate))
   );
 }
 
-function isSessionAggregate(value: unknown): value is NumericAggregate {
+export function isSessionAggregate(value: unknown): value is NumericAggregate {
   return (
     isRecord(value) &&
     hasExactKeys(value, ["version", "interactionCount", "platformCounts", "tokens", "impacts"]) &&
@@ -169,7 +198,7 @@ function isSessionAggregate(value: unknown): value is NumericAggregate {
   );
 }
 
-function isDayAggregate(value: unknown): value is DayAggregate {
+export function isDayAggregate(value: unknown): value is DayAggregate {
   if (
     !isRecord(value) ||
     !hasExactKeys(value, [
@@ -184,7 +213,7 @@ function isDayAggregate(value: unknown): value is DayAggregate {
     return false;
   }
   const { localDate, ...aggregate } = value;
-  return typeof localDate === "string" && isNumericAggregate(aggregate);
+  return isCalendarDate(localDate) && isNumericAggregate(aggregate);
 }
 
 function isEventContribution(value: unknown): value is EventContribution {
@@ -232,9 +261,37 @@ function isStoredEventState(value: unknown): value is StoredEventState {
       (entry.sequence as number) >= 1 &&
       Number.isSafeInteger(entry.updatedAt) &&
       (entry.updatedAt as number) >= 0 &&
-      typeof entry.localDate === "string" &&
+      isCalendarDate(entry.localDate) &&
       isEventContribution(entry.contribution),
   );
+}
+
+function isActiveSessionState(value: unknown): value is ActiveSessionState {
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["version", "entries"]) ||
+    value.version !== 1 ||
+    !Array.isArray(value.entries) ||
+    value.entries.length > maximumActiveSessions
+  ) {
+    return false;
+  }
+  const sessionIds = new Set<string>();
+  return value.entries.every((entry) => {
+    if (
+      !isRecord(entry) ||
+      !hasExactKeys(entry, ["tabSessionId", "lastSeen"]) ||
+      typeof entry.tabSessionId !== "string" ||
+      !identifierPattern.test(entry.tabSessionId) ||
+      sessionIds.has(entry.tabSessionId) ||
+      !Number.isSafeInteger(entry.lastSeen) ||
+      (entry.lastSeen as number) < 0
+    ) {
+      return false;
+    }
+    sessionIds.add(entry.tabSessionId);
+    return true;
+  });
 }
 
 function isDeduplicationState(value: unknown): value is DeduplicationState {
@@ -265,12 +322,32 @@ function isDeduplicationState(value: unknown): value is DeduplicationState {
 function isRecoveryJournal(value: unknown): value is RecoveryJournal {
   return (
     isRecord(value) &&
-    hasExactKeys(value, ["version", "tabSessionId", "sessionAggregate", "eventState"]) &&
+    hasExactKeys(value, [
+      "version",
+      "createdAt",
+      "tabSessionId",
+      "sessionAggregate",
+      "eventState",
+      "activeSessions",
+      "sessionIdsToRemove",
+    ]) &&
     value.version === 1 &&
+    Number.isSafeInteger(value.createdAt) &&
+    (value.createdAt as number) >= 0 &&
     typeof value.tabSessionId === "string" &&
     identifierPattern.test(value.tabSessionId) &&
     isSessionAggregate(value.sessionAggregate) &&
-    isStoredEventState(value.eventState)
+    isStoredEventState(value.eventState) &&
+    isActiveSessionState(value.activeSessions) &&
+    Array.isArray(value.sessionIdsToRemove) &&
+    value.sessionIdsToRemove.length <= maximumActiveSessions &&
+    new Set(value.sessionIdsToRemove).size === value.sessionIdsToRemove.length &&
+    value.sessionIdsToRemove.every(
+      (sessionId) =>
+        typeof sessionId === "string" &&
+        identifierPattern.test(sessionId) &&
+        sessionId !== value.tabSessionId,
+    )
   );
 }
 
@@ -339,6 +416,32 @@ async function readKey(area: ExtensionStorageArea, key: string): Promise<unknown
   return stored[key];
 }
 
+function updateActiveSessions(
+  stored: unknown,
+  tabSessionId: string,
+  timestamp: number,
+): { activeSessions: ActiveSessionState; sessionIdsToRemove: string[] } {
+  const previousEntries = isActiveSessionState(stored) ? stored.entries : [];
+  const eligibleEntries = previousEntries.filter(
+    (entry) =>
+      entry.tabSessionId !== tabSessionId &&
+      entry.lastSeen <= timestamp &&
+      timestamp - entry.lastSeen <= activeSessionLifetimeMs,
+  );
+  const entries = [...eligibleEntries, { tabSessionId, lastSeen: timestamp }]
+    .sort(
+      (left, right) =>
+        right.lastSeen - left.lastSeen || left.tabSessionId.localeCompare(right.tabSessionId),
+    )
+    .slice(0, maximumActiveSessions);
+  const retainedIds = new Set(entries.map((entry) => entry.tabSessionId));
+  const sessionIdsToRemove = previousEntries
+    .map((entry) => entry.tabSessionId)
+    .filter((sessionId) => sessionId !== tabSessionId && !retainedIds.has(sessionId))
+    .slice(0, maximumActiveSessions);
+  return { activeSessions: { version: 1, entries }, sessionIdsToRemove };
+}
+
 export class AggregateStore {
   private readonly local: ExtensionStorageArea;
   private readonly session: ExtensionStorageArea;
@@ -354,7 +457,7 @@ export class AggregateStore {
   }
 
   async getDayAggregate(): Promise<DayAggregate> {
-    const currentDate = this.localDate();
+    const currentDate = requireCalendarDate(this.localDate());
     const stored = await readKey(this.local, dayStorageKey);
     return isDayAggregate(stored) && stored.localDate === currentDate
       ? stored
@@ -367,32 +470,45 @@ export class AggregateStore {
     return isSessionAggregate(stored) ? stored : null;
   }
 
-  private async recoverPendingWrite(): Promise<void> {
+  private async recoverPendingWrite(timestamp: number): Promise<void> {
     const storedJournal = await readKey(this.local, recoveryJournalStorageKey);
     if (storedJournal === undefined) return;
-    if (!isRecoveryJournal(storedJournal)) {
+    if (
+      !isRecoveryJournal(storedJournal) ||
+      storedJournal.createdAt > timestamp ||
+      timestamp - storedJournal.createdAt > recoveryJournalLifetimeMs
+    ) {
       await this.local.remove(recoveryJournalStorageKey);
       return;
     }
     await this.session.set({
       [sessionAggregateKey(storedJournal.tabSessionId)]: storedJournal.sessionAggregate,
       [sessionEventsKey(storedJournal.tabSessionId)]: storedJournal.eventState,
+      [activeSessionsStorageKey]: storedJournal.activeSessions,
     });
+    if (storedJournal.sessionIdsToRemove.length > 0) {
+      await this.session.remove(sessionKeys(storedJournal.sessionIdsToRemove));
+    }
     await this.local.remove(recoveryJournalStorageKey);
   }
 
   processEvent(event: NumericInteractionEvent): Promise<ProcessEventResult> {
+    if (!Number.isSafeInteger(event.sequence) || event.sequence < 1) {
+      return Promise.reject(new Error("INVALID_EVENT_SEQUENCE"));
+    }
     return this.queue.enqueue(aggregateQueueKey, async () => {
-      await this.recoverPendingWrite();
-      const currentDate = this.localDate();
-      const timestamp = this.now();
+      const currentDate = requireCalendarDate(this.localDate());
+      const timestamp = requireTimestamp(this.now());
+      await this.recoverPendingWrite(timestamp);
       const eventsKey = sessionEventsKey(event.tabSessionId);
-      const [storedDay, storedSession, storedEvents, storedDeduplication] = await Promise.all([
-        readKey(this.local, dayStorageKey),
-        readKey(this.session, sessionAggregateKey(event.tabSessionId)),
-        readKey(this.session, eventsKey),
-        readKey(this.local, deduplicationStorageKey),
-      ]);
+      const [storedDay, storedSession, storedEvents, storedDeduplication, storedActiveSessions] =
+        await Promise.all([
+          readKey(this.local, dayStorageKey),
+          readKey(this.session, sessionAggregateKey(event.tabSessionId)),
+          readKey(this.session, eventsKey),
+          readKey(this.local, deduplicationStorageKey),
+          readKey(this.session, activeSessionsStorageKey),
+        ]);
       const day =
         isDayAggregate(storedDay) && storedDay.localDate === currentDate
           ? storedDay
@@ -455,12 +571,20 @@ export class AggregateStore {
       ]
         .sort((left, right) => right.updatedAt - left.updatedAt)
         .slice(0, maximumRecentEvents);
+      const { activeSessions, sessionIdsToRemove } = updateActiveSessions(
+        storedActiveSessions,
+        event.tabSessionId,
+        timestamp,
+      );
 
       const recoveryJournal: RecoveryJournal = {
         version: 1,
+        createdAt: timestamp,
         tabSessionId: event.tabSessionId,
         sessionAggregate: nextSession,
         eventState: { version: 1, events: nextEvents },
+        activeSessions,
+        sessionIdsToRemove,
       };
       await this.local.set({
         [dayStorageKey]: nextDay,
@@ -470,7 +594,11 @@ export class AggregateStore {
       await this.session.set({
         [sessionAggregateKey(event.tabSessionId)]: nextSession,
         [eventsKey]: { version: 1, events: nextEvents },
+        [activeSessionsStorageKey]: activeSessions,
       });
+      if (sessionIdsToRemove.length > 0) {
+        await this.session.remove(sessionKeys(sessionIdsToRemove));
+      }
       await this.local.remove(recoveryJournalStorageKey);
       return { status: "accepted" };
     });
@@ -480,11 +608,29 @@ export class AggregateStore {
     if (!identifierPattern.test(tabSessionId))
       return Promise.reject(new Error("INVALID_SESSION_ID"));
     return this.queue.enqueue(aggregateQueueKey, async () => {
-      await this.recoverPendingWrite();
-      await this.session.remove([
-        sessionAggregateKey(tabSessionId),
-        sessionEventsKey(tabSessionId),
-      ]);
+      const timestamp = requireTimestamp(this.now());
+      await this.recoverPendingWrite(timestamp);
+      const storedActiveSessions = await readKey(this.session, activeSessionsStorageKey);
+      const activeSessions: ActiveSessionState = {
+        version: 1,
+        entries: isActiveSessionState(storedActiveSessions)
+          ? storedActiveSessions.entries.filter(
+              (entry) =>
+                entry.tabSessionId !== tabSessionId &&
+                entry.lastSeen <= timestamp &&
+                timestamp - entry.lastSeen <= activeSessionLifetimeMs,
+            )
+          : [],
+      };
+      const retainedIds = new Set(activeSessions.entries.map((entry) => entry.tabSessionId));
+      const sessionIdsToRemove = isActiveSessionState(storedActiveSessions)
+        ? storedActiveSessions.entries
+            .map((entry) => entry.tabSessionId)
+            .filter((sessionId) => !retainedIds.has(sessionId))
+        : [tabSessionId];
+      if (!sessionIdsToRemove.includes(tabSessionId)) sessionIdsToRemove.push(tabSessionId);
+      await this.session.remove(sessionKeys(sessionIdsToRemove));
+      await this.session.set({ [activeSessionsStorageKey]: activeSessions });
       const stored = await readKey(this.local, deduplicationStorageKey);
       if (isDeduplicationState(stored)) {
         await this.local.set({

@@ -35,7 +35,8 @@ entre énergie, eau et carbone.
 3. Renseigner chaque indicateur séparément : estimateur, unité, coefficients, multiplicateurs,
    confiance et `sourceId`.
 4. Mettre à jour `METHODOLOGY.md` avec les calculs reproductibles. Pour une table source comparable
-   à *How Hungry is AI?*, transcrire les données brutes dans un fixture versionné, tester toutes les
+   à *How Hungry is AI?*, transcrire les chaînes brutes et les valeurs numériques normalisées dans
+   un fixture versionné, signaler explicitement toute normalisation inférée, tester toutes les
    valeurs publiées et vérifier les coefficients avec `npm run impact-coefficients`.
 5. Ajouter des tests du registre, des unités, des limites et des résultats attendus. Pour chaque
    nouveau profil, ajouter ou mettre à jour un cas dans `tests/unit/model-selection.test.ts` pour

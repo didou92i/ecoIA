@@ -23,8 +23,12 @@ function isBoundedIdentifier(value: unknown): value is string {
   return typeof value === "string" && identifierPattern.test(value);
 }
 
-function isBoundedInteger(value: unknown): value is number {
+function isNonNegativeBoundedInteger(value: unknown): value is number {
   return Number.isSafeInteger(value) && (value as number) >= 0;
+}
+
+function isPositiveBoundedInteger(value: unknown): value is number {
+  return Number.isSafeInteger(value) && (value as number) >= 1;
 }
 
 function isEstimateRange(value: unknown): boolean {
@@ -76,12 +80,12 @@ export function validateNumericInteractionEvent(
     value.version !== 1 ||
     !isBoundedIdentifier(value.eventId) ||
     !isBoundedIdentifier(value.tabSessionId) ||
-    !isBoundedInteger(value.sequence) ||
+    !isPositiveBoundedInteger(value.sequence) ||
     !platformIds.includes(value.platform as (typeof platformIds)[number]) ||
     !isBoundedIdentifier(value.modelProfileId) ||
     !interactionPhases.includes(value.phase as (typeof interactionPhases)[number]) ||
     !isVisibleTokenEstimate(value.tokens) ||
-    !isBoundedInteger(value.generatedAt)
+    !isNonNegativeBoundedInteger(value.generatedAt)
   ) {
     return { ok: false, error: "INVALID_MESSAGE" };
   }

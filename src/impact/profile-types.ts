@@ -48,6 +48,7 @@ export interface ImpactSource {
 export interface ImpactProfile {
   id: string;
   version: number;
+  derivationId?: string;
   displayName: string;
   platforms: PlatformId[];
   modelAliases: {

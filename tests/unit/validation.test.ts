@@ -82,6 +82,7 @@ describe("numeric interaction event validation", () => {
     { eventId: "a".repeat(129) },
     { tabSessionId: "contains spaces" },
     { modelProfileId: "../profile" },
+    { sequence: 0 },
     { sequence: -1 },
     { sequence: 1.5 },
     { generatedAt: Number.POSITIVE_INFINITY },

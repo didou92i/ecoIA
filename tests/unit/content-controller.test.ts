@@ -11,6 +11,7 @@ import type { BrowserApi, ExtensionStorageArea } from "../../src/browser/browser
 import { registerServiceWorker } from "../../src/background/service-worker";
 import { ContentController, type ContentWidget } from "../../src/content/content-controller";
 import { estimateImpact } from "../../src/impact/impact-engine";
+import type { DayAggregate } from "../../src/storage/storage-types";
 import { estimateVisibleTokens } from "../../src/token/token-estimator";
 import type { WidgetViewModel } from "../../src/widget/eco-widget";
 
@@ -75,6 +76,24 @@ function requireSnapshot(adapter: FakeAdapter): VisibleTurnSnapshot {
   return adapter.snapshot;
 }
 
+function zeroDayAggregate(localDate: string, interactionCount = 0): DayAggregate {
+  const zero = { low: 0, central: 0, high: 0 };
+  return {
+    version: 1,
+    interactionCount,
+    platformCounts: { chatgpt: 0, claude: 0, gemini: 0, mistral: 0, perplexity: 0 },
+    tokens: { input: zero, output: zero },
+    impacts: {
+      energyWh: zero,
+      waterMl: zero,
+      carbonG: zero,
+      televisionSeconds: zero,
+      carMeters: zero,
+    },
+    localDate,
+  };
+}
+
 function createHarness(adapter = new FakeAdapter(), numericResponses: unknown[] = []) {
   const messages: unknown[] = [];
   let runtimeListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
@@ -110,7 +129,7 @@ function createHarness(adapter = new FakeAdapter(), numericResponses: unknown[] 
     api,
     createWidget: () => widget,
     randomUUID: () => `uuid-${++uuidIndex}`,
-    now: () => 1_721_318_400_000 + uuidIndex,
+    now: () => 1_784_368_800_000 + uuidIndex,
   });
   return {
     adapter,
@@ -125,13 +144,17 @@ function createHarness(adapter = new FakeAdapter(), numericResponses: unknown[] 
   };
 }
 
-function createIntegratedHarness(adapter = new FakeAdapter()) {
+function createIntegratedHarness(
+  adapter = new FakeAdapter(),
+  options: { malformedFirstNumericAck?: boolean } = {},
+) {
   const messages: unknown[] = [];
   const updates: WidgetViewModel[] = [];
   const local = new MemoryStorageArea();
   const session = new MemoryStorageArea();
   let workerListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
   let toolbarListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
+  let numericResponseCount = 0;
 
   const workerApi: BrowserApi = {
     runtime: {
@@ -156,7 +179,13 @@ function createIntegratedHarness(adapter = new FakeAdapter()) {
         if (!listener) throw new Error("MISSING_WORKER_LISTENER");
         return new Promise((resolve) => {
           const keepChannelOpen = listener(message, {}, (response) =>
-            resolve(structuredClone(response)),
+            resolve(
+              options.malformedFirstNumericAck &&
+                "eventId" in (message as Record<string, unknown>) &&
+                numericResponseCount++ === 0
+                ? { ok: true }
+                : structuredClone(response),
+            ),
           );
           if (keepChannelOpen !== true) throw new Error("WORKER_CHANNEL_CLOSED");
         });
@@ -180,8 +209,26 @@ function createIntegratedHarness(adapter = new FakeAdapter()) {
     api: contentApi,
     createWidget: () => widget,
     randomUUID: () => `integrated-uuid-${++uuidIndex}`,
-    now: () => 1_721_318_400_000 + uuidIndex,
+    now: () => 1_784_368_800_000 + uuidIndex,
   });
+
+  const createRestartedController = () => {
+    const restartedUpdates: WidgetViewModel[] = [];
+    const restartedWidget = Object.assign(document.createElement("div"), {
+      configure: vi.fn(),
+      update: (viewModel: WidgetViewModel) => restartedUpdates.push(structuredClone(viewModel)),
+      toggleCollapsed: vi.fn(),
+    }) as ContentWidget;
+    const restartedController = new ContentController({
+      document,
+      adapter,
+      api: contentApi,
+      createWidget: () => restartedWidget,
+      randomUUID: () => `restarted-uuid-${++uuidIndex}`,
+      now: () => 1_784_368_800_000 + uuidIndex,
+    });
+    return { controller: restartedController, updates: restartedUpdates, widget: restartedWidget };
+  };
 
   return {
     controller,
@@ -189,6 +236,7 @@ function createIntegratedHarness(adapter = new FakeAdapter()) {
     updates,
     widget,
     cleanupWorker,
+    createRestartedController,
     getWorkerListener: () => workerListener,
     getToolbarListener: () => toolbarListener,
   };
@@ -410,7 +458,7 @@ describe("content controller", () => {
     expect(JSON.stringify(messages)).not.toContain("conversation-b");
   });
 
-  it("resets once when a conversation marker or path becomes null at the root route", async () => {
+  it("resets once without recounting the old DOM when a conversation reaches the root route", async () => {
     const adapter = new FakeAdapter();
     adapter.contextSnapshot = { text: "Premier contexte", coverage: "complete" };
     const { controller, messages, updates, widget } = createHarness(adapter);
@@ -437,13 +485,15 @@ describe("content controller", () => {
     expect(resetMessages).toEqual([
       { version: 1, kind: "reset-session", tabSessionId: firstNumeric.tabSessionId },
     ]);
+    expect(numericMessages(messages)).toHaveLength(2);
     expect(adapter.contextReadCount).toBe(2);
-    expect(afterReset.eventId).not.toBe(firstNumeric.eventId);
-    expect(afterReset.tabSessionId).not.toBe(firstNumeric.tabSessionId);
+    expect(afterReset.eventId).toBe(firstNumeric.eventId);
+    expect(afterReset.tabSessionId).toBe(firstNumeric.tabSessionId);
     expect(updates.at(-1)?.modelControl).toMatchObject({
       selectedProfileId: null,
       resolution: "automatic",
     });
+    expect(updates.at(-1)?.session).toBeNull();
   });
 
   it("exposes only structured diagnostics for all response, model and context states", async () => {
@@ -532,7 +582,73 @@ describe("content controller", () => {
     });
   });
 
-  it("resets the ephemeral session on SPA conversation change", async () => {
+  it("never acknowledges malformed ok:true and contributes the retry exactly once", async () => {
+    const harness = createIntegratedHarness(new FakeAdapter(), {
+      malformedFirstNumericAck: true,
+    });
+    await harness.controller.start();
+    await harness.controller.refresh();
+    await harness.controller.refresh();
+
+    const sent = numericMessages(harness.messages) as Array<{
+      eventId: string;
+      sequence: number;
+    }>;
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toEqual(expect.objectContaining(sent[0]));
+    expect(harness.updates.at(-1)).toMatchObject({
+      session: { interactionCount: 1 },
+      day: { interactionCount: 1 },
+    });
+    harness.cleanupWorker();
+  });
+
+  it("shows but does not recount the same completed DOM snapshot after content restart", async () => {
+    const adapter = new FakeAdapter();
+    const harness = createIntegratedHarness(adapter);
+    await harness.controller.start();
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      responseText: "Réponse terminée avant le redémarrage du content script.",
+      phase: "completed",
+    };
+    await harness.controller.refresh();
+    expect(harness.updates.at(-1)?.day).toMatchObject({ interactionCount: 1 });
+    const sentBeforeRestart = numericMessages(harness.messages).length;
+    harness.controller.stop();
+
+    const restarted = harness.createRestartedController();
+    await restarted.controller.start();
+
+    expect(numericMessages(harness.messages)).toHaveLength(sentBeforeRestart);
+    expect(restarted.updates.at(-1)).toMatchObject({
+      state: "completed",
+      day: { interactionCount: 1 },
+    });
+    restarted.controller.stop();
+    harness.cleanupWorker();
+  });
+
+  it("hydrates only the aggregate for the current local calendar day", async () => {
+    const current = createHarness();
+    current.adapter.snapshot = { ...requireSnapshot(current.adapter), phase: "completed" };
+    current.local.values["ecoia.day.v1"] = zeroDayAggregate("2026-07-18", 7);
+    await current.controller.start();
+    expect(current.updates.at(-1)?.day).toMatchObject({
+      interactionCount: 7,
+      localDate: "2026-07-18",
+    });
+
+    current.controller.stop();
+    document.body.replaceChildren();
+    const stale = createHarness();
+    stale.adapter.snapshot = { ...requireSnapshot(stale.adapter), phase: "completed" };
+    stale.local.values["ecoia.day.v1"] = zeroDayAggregate("2026-07-17", 99);
+    await stale.controller.start();
+    expect(stale.updates.at(-1)?.day).toBeNull();
+  });
+
+  it("treats a terminal turn found after SPA navigation as a non-aggregated baseline", async () => {
     const { adapter, controller, messages } = createHarness();
     await controller.start();
     const firstSession = (messages[0] as { tabSessionId: string }).tabSessionId;
@@ -545,9 +661,28 @@ describe("content controller", () => {
     await controller.refresh();
 
     expect(messages[1]).toEqual({ version: 1, kind: "reset-session", tabSessionId: firstSession });
-    expect((messages[2] as { tabSessionId: string }).tabSessionId).not.toBe(firstSession);
+    expect(numericMessages(messages)).toHaveLength(1);
     expect(JSON.stringify(messages)).not.toContain("conversation-a");
     expect(JSON.stringify(messages)).not.toContain("conversation-b");
+  });
+
+  it("aggregates a streaming turn found after SPA navigation in the new session", async () => {
+    const { adapter, controller, messages } = createHarness();
+    await controller.start();
+    const firstSession = (messages[0] as { tabSessionId: string }).tabSessionId;
+    adapter.marker = "conversation-b";
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      turnElement: document.createElement("article"),
+      responseText: "Nouvelle réponse encore en cours.",
+      phase: "streaming",
+    };
+    await controller.refresh();
+
+    expect(messages[1]).toEqual({ version: 1, kind: "reset-session", tabSessionId: firstSession });
+    expect((numericMessages(messages)[1] as { tabSessionId: string }).tabSessionId).not.toBe(
+      firstSession,
+    );
   });
 
   it("clears the previous measurement when a changed SPA conversation has no turn", async () => {

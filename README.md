@@ -100,6 +100,10 @@ Une question et ses éventuels segments de réponse visibles comptent comme une 
 leurs textes visibles sont cumulés pour l’estimation. Consultez
 [la méthodologie](METHODOLOGY.md) et [la calibration des tokens](docs/token-calibration.md).
 
+Les totaux commencent à partir de l’activation d’ecoIA. Lors d’un rechargement, une réponse déjà
+terminée reste estimée à l’écran mais n’est pas ajoutée une seconde fois ; une réponse en cours ou une
+mutation observée ensuite peut être agrégée.
+
 ## Confidentialité
 
 - Le texte visible est lu uniquement dans la page et immédiatement transformé en nombres.

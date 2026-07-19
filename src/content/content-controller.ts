@@ -9,7 +9,7 @@ import {
 } from "../impact/model-selection";
 import type { NumericInteractionEvent, PlatformId } from "../shared/contracts";
 import { createRange } from "../shared/range";
-import { isNumericAggregate } from "../storage/aggregate-store";
+import { isDayAggregate, isSessionAggregate } from "../storage/aggregate-store";
 import type { NumericAggregate } from "../storage/storage-types";
 import { createInputEnvelope, type ContextTokenEstimate } from "../token/context-envelope";
 import { estimateVisibleTokens, type TokenizerFamily } from "../token/token-estimator";
@@ -18,12 +18,14 @@ import type { WidgetConfiguration, WidgetViewModel } from "../widget/eco-widget"
 import { conversationChanged, createEphemeralSessionId } from "./page-lifecycle";
 
 const preferencesStorageKey = "ecoia.preferences.v1";
+const dayStorageKey = "ecoia.day.v1";
 
 interface TurnState {
   eventId: string;
   sequence: number;
   pendingSignature: string | null;
   acknowledgedSignature: string | null;
+  baselineSignature: string | null;
 }
 
 export interface ContentWidget extends HTMLElement {
@@ -42,11 +44,20 @@ interface ContentControllerOptions {
   now?: () => number;
 }
 
-interface AggregateResponse {
-  ok: true;
-  session: NumericAggregate | null;
-  day: NumericAggregate | null;
-}
+type AggregateResponse =
+  | {
+      ok: true;
+      status: "accepted";
+      session: NumericAggregate | null;
+      day: NumericAggregate | null;
+    }
+  | {
+      ok: true;
+      status: "ignored";
+      reason: "DUPLICATE_OR_OUT_OF_ORDER";
+      session: NumericAggregate | null;
+      day: NumericAggregate | null;
+    };
 
 function tokenizerFamily(platform: PlatformId): TokenizerFamily {
   if (platform === "chatgpt") return "openai";
@@ -98,12 +109,38 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+  const actual = Object.keys(value);
+  return actual.length === keys.length && actual.every((key) => keys.includes(key));
+}
+
 function parseAggregateResponse(value: unknown): AggregateResponse | null {
   if (!isRecord(value) || value.ok !== true) return null;
-  const session =
-    value.session === null ? null : isNumericAggregate(value.session) ? value.session : null;
-  const day = value.day === null ? null : isNumericAggregate(value.day) ? value.day : null;
-  return { ok: true, session, day };
+  const session = value.session === null ? null : value.session;
+  const day = value.day === null ? null : value.day;
+  if (
+    (session !== null && !isSessionAggregate(session)) ||
+    (day !== null && !isDayAggregate(day))
+  ) {
+    return null;
+  }
+  if (value.status === "accepted" && hasExactKeys(value, ["ok", "status", "session", "day"])) {
+    return { ok: true, status: "accepted", session, day };
+  }
+  if (
+    value.status === "ignored" &&
+    value.reason === "DUPLICATE_OR_OUT_OF_ORDER" &&
+    hasExactKeys(value, ["ok", "status", "reason", "session", "day"])
+  ) {
+    return {
+      ok: true,
+      status: "ignored",
+      reason: "DUPLICATE_OR_OUT_OF_ORDER",
+      session,
+      day,
+    };
+  }
+  return null;
 }
 
 function isStoredPreferences(value: unknown): value is Partial<WidgetPreferences> {
@@ -129,6 +166,31 @@ function numericSignature(event: NumericInteractionEvent): string {
   ].join(":");
 }
 
+function visibleSnapshotSignature(
+  phase: NumericInteractionEvent["phase"],
+  tokens: NumericInteractionEvent["tokens"],
+): string {
+  return [
+    phase,
+    tokens.input.low,
+    tokens.input.central,
+    tokens.input.high,
+    tokens.output.low,
+    tokens.output.central,
+    tokens.output.high,
+  ].join(":");
+}
+
+function localCalendarDate(timestamp: number): string | null {
+  if (!Number.isFinite(timestamp)) return null;
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.valueOf())) return null;
+  const year = String(date.getFullYear()).padStart(4, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export class ContentController {
   private readonly document: Document;
   private readonly adapter: PlatformAdapter;
@@ -148,6 +210,8 @@ export class ContentController {
   private selectionError: string | null = null;
   private viewModel: WidgetViewModel;
   private refreshQueue: Promise<void> = Promise.resolve();
+  private initialSnapshotPending = true;
+  private lastObservedTurnElement: Element | null = null;
 
   constructor(options: ContentControllerOptions) {
     this.document = options.document;
@@ -163,8 +227,13 @@ export class ContentController {
   async start(): Promise<void> {
     if (this.widget) return;
     this.widget = this.createWidget();
-    const stored = await this.api.storage.local.get(preferencesStorageKey);
+    const stored = await this.api.storage.local.get([preferencesStorageKey, dayStorageKey]);
     const preferences = stored[preferencesStorageKey];
+    const storedDay = stored[dayStorageKey];
+    const currentLocalDate = localCalendarDate(this.now());
+    if (isDayAggregate(storedDay) && storedDay.localDate === currentLocalDate) {
+      this.viewModel = { ...this.viewModel, day: storedDay };
+    }
     this.widget.configure({
       ...(isStoredPreferences(preferences) ? { preferences } : {}),
       onPreferencesChange: (nextPreferences) => {
@@ -292,7 +361,9 @@ export class ContentController {
     }
     this.subscribeToRoot(root);
     const nextMarker = this.adapter.getConversationMarker(this.document);
-    if (conversationChanged(this.conversationMarker, nextMarker)) {
+    const markerHasChanged = conversationChanged(this.conversationMarker, nextMarker);
+    const turnBeforeReset = this.lastObservedTurnElement;
+    if (markerHasChanged) {
       await this.resetConversation(nextMarker);
     } else if (this.conversationMarker === null) {
       this.conversationMarker = nextMarker;
@@ -306,6 +377,7 @@ export class ContentController {
     });
     const snapshot = this.adapter.readLatestTurn(root);
     if (!snapshot) {
+      this.initialSnapshotPending = false;
       this.viewModel = {
         ...this.viewModel,
         state: "active",
@@ -322,7 +394,13 @@ export class ContentController {
       widget.update(this.viewModel);
       return;
     }
-    await this.processSnapshot(root, snapshot, detected, widget);
+    const baselineSnapshot =
+      (this.initialSnapshotPending && snapshot.phase !== "streaming") ||
+      (markerHasChanged &&
+        (snapshot.turnElement === turnBeforeReset || snapshot.phase !== "streaming"));
+    this.initialSnapshotPending = false;
+    await this.processSnapshot(root, snapshot, detected, widget, baselineSnapshot);
+    this.lastObservedTurnElement = snapshot.turnElement;
   }
 
   private createModelControl(resolution: ModelResolution): WidgetViewModel["modelControl"] {
@@ -370,6 +448,7 @@ export class ContentController {
     snapshot: VisibleTurnSnapshot,
     detected: ReturnType<PlatformAdapter["detectModel"]>,
     widget: ContentWidget,
+    baselineSnapshot: boolean,
   ): Promise<void> {
     try {
       const family = tokenizerFamily(this.adapter.platform);
@@ -400,6 +479,7 @@ export class ContentController {
         tokens,
         generatedAt: this.now(),
       });
+      const snapshotSignature = visibleSnapshotSignature(snapshot.phase, tokens);
       const sequence =
         previousState?.pendingSignature === signature
           ? previousState.sequence
@@ -440,12 +520,24 @@ export class ContentController {
         current: { tokens, impact },
       };
       widget.update(this.viewModel);
+      if (baselineSnapshot) {
+        this.turnStates.set(snapshot.turnElement, {
+          eventId: eventIdentity,
+          sequence: previousState?.sequence ?? 0,
+          pendingSignature: null,
+          acknowledgedSignature: previousState?.acknowledgedSignature ?? null,
+          baselineSignature: snapshotSignature,
+        });
+        return;
+      }
+      if (previousState?.baselineSignature === snapshotSignature) return;
       if (previousState?.acknowledgedSignature === signature) return;
       this.turnStates.set(snapshot.turnElement, {
         eventId: event.eventId,
         sequence,
         pendingSignature: signature,
         acknowledgedSignature: previousState?.acknowledgedSignature ?? null,
+        baselineSignature: null,
       });
       const response = parseAggregateResponse(await this.api.runtime.sendMessage(event));
       if (response) {
@@ -454,6 +546,7 @@ export class ContentController {
           sequence,
           pendingSignature: null,
           acknowledgedSignature: signature,
+          baselineSignature: null,
         });
         this.viewModel = { ...this.viewModel, session: response.session, day: response.day };
         widget.update(this.viewModel);

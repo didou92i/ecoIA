@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";
 
 import packageJson from "../../package.json";
@@ -62,5 +63,17 @@ describe("project configuration", () => {
     expect(verifyScript.indexOf("npm run impact-coefficients")).toBeLessThan(
       verifyScript.indexOf("npm run build"),
     );
+  });
+
+  it("runs the impact coefficient gate explicitly in CI before build and documents it", async () => {
+    const [workflow, checklist] = await Promise.all([
+      readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8"),
+      readFile(new URL("../../docs/release-checklist.md", import.meta.url), "utf8"),
+    ]);
+    expect(workflow).toContain("run: npm run impact-coefficients");
+    expect(workflow.indexOf("run: npm run impact-coefficients")).toBeLessThan(
+      workflow.indexOf("run: npm run build"),
+    );
+    expect(checklist).toContain("npm run impact-coefficients");
   });
 });

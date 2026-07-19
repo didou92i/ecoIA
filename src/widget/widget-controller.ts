@@ -78,6 +78,7 @@ export class WidgetController {
   toggleCollapsed(): void {
     this.preferences.collapsed = !this.preferences.collapsed;
     this.applyPreferences();
+    this.scheduleReclamp();
   }
 
   updateModelControl(
@@ -125,10 +126,12 @@ export class WidgetController {
     this.listen(this.elements.collapseButton, "click", () => {
       this.preferences.collapsed = true;
       this.applyPreferences();
+      this.scheduleReclamp();
     });
     this.listen(this.elements.expandButton, "click", () => {
       this.preferences.collapsed = false;
       this.applyPreferences();
+      this.scheduleReclamp();
     });
     this.listen(this.elements.anchorLeftButton, "click", () => this.setSide("left"));
     this.listen(this.elements.anchorRightButton, "click", () => this.setSide("right"));
@@ -176,6 +179,7 @@ export class WidgetController {
     this.host.style.removeProperty("left");
     this.host.style.removeProperty("right");
     this.applyPreferences();
+    this.scheduleReclamp();
   }
 
   private startDrag(event: PointerEvent): void {
@@ -218,6 +222,7 @@ export class WidgetController {
     this.host.style.removeProperty("left");
     this.host.style.removeProperty("right");
     this.applyPreferences();
+    this.scheduleReclamp();
   }
 
   private reclamp(): void {

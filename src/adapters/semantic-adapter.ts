@@ -82,6 +82,8 @@ function appearsBefore(left: Element, right: Element): boolean {
   return Boolean(left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING);
 }
 
+const conversationMarkerCache = new WeakMap<Document, { path: string; marker: string }>();
+
 function markerFromDocument(document: Document, selectors: string[]): string | null {
   const explicitMarker = queryAll(document, selectors)
     .map(
@@ -91,9 +93,18 @@ function markerFromDocument(document: Document, selectors: string[]): string | n
         element.getAttribute("data-chat-id"),
     )
     .find((marker): marker is string => Boolean(marker));
-  if (explicitMarker) return explicitMarker.slice(0, 512);
-  const path = document.location?.pathname;
-  return path && path !== "/" ? path.slice(0, 512) : null;
+  const path = document.location?.pathname ?? "/";
+  if (explicitMarker) {
+    const marker = explicitMarker.slice(0, 512);
+    conversationMarkerCache.set(document, { path, marker });
+    return marker;
+  }
+  if (path && path !== "/") {
+    const cached = conversationMarkerCache.get(document);
+    return cached?.path === path ? cached.marker : path.slice(0, 512);
+  }
+  conversationMarkerCache.delete(document);
+  return null;
 }
 
 export function createSemanticAdapter(

@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from "@playwright/test";
 
-import { expect, test } from "./extension.fixture";
+import { activateFixtureInteraction, expect, test } from "./extension.fixture";
 
 async function openFixturePage(
   extensionContext: BrowserContext,
@@ -16,6 +16,7 @@ async function openFixturePage(
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto(`${fixtureOrigin}${path}`);
   await expect(page.locator("eco-ia-widget")).toBeVisible();
+  await activateFixtureInteraction(page);
   await expect(page.locator("eco-ia-widget [data-status]")).toHaveText("Réponse mesurée");
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);
@@ -141,7 +142,7 @@ test("réinitialise la session quand une conversation SPA revient à la route ra
   await expect(modelSelect).toHaveValue("");
   await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4o");
   await expect(widget.locator("[data-diagnostics]")).toContainText("Modèle · Automatique");
-  await expect(widget.locator("[data-session]")).toContainText("1 interaction");
+  await expect(widget.locator("[data-session]")).toHaveText("Aucune donnée");
   await page.close();
 });
 

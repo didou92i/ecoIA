@@ -192,6 +192,79 @@ describe("ecoIA widget", () => {
     expect(cancelFrame).toHaveBeenCalledWith(pendingFrame);
   });
 
+  it("reclamps on RAF after collapse, movement and reopen with reduced motion", () => {
+    const callbacks = new Map<number, FrameRequestCallback>();
+    let nextFrame = 0;
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      const frameId = ++nextFrame;
+      callbacks.set(frameId, callback);
+      return frameId;
+    });
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    vi.stubGlobal(
+      "cancelAnimationFrame",
+      vi.fn((frameId: number) => callbacks.delete(frameId)),
+    );
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn(() => ({ matches: true, media: "(prefers-reduced-motion: reduce)" })),
+    );
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(720);
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(900);
+    const widget = createWidget();
+    widget.configure({
+      preferences: { theme: "system", side: "right", collapsed: false, top: 500 },
+    });
+    const panel = widget.shadowRoot?.querySelector<HTMLElement>("section.panel");
+    const handle = widget.shadowRoot?.querySelector<HTMLElement>(".drag-handle");
+    if (!panel || !handle) throw new Error("MISSING_WIDGET_FIXTURE");
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 232,
+      bottom: 696,
+      left: 0,
+      width: 232,
+      height: 696,
+      toJSON: () => ({}),
+    });
+    vi.spyOn(widget, "getBoundingClientRect").mockReturnValue({
+      x: 648,
+      y: 500,
+      top: 500,
+      right: 880,
+      bottom: 540,
+      left: 648,
+      width: 232,
+      height: 40,
+      toJSON: () => ({}),
+    });
+
+    widget.shadowRoot?.querySelector<HTMLButtonElement>("[data-collapse]")?.click();
+    const collapseFrame = requestFrame.mock.results.at(-1)?.value;
+    expect(collapseFrame).toBe(1);
+    callbacks.get(collapseFrame)?.(0);
+
+    const pointerEvent = (type: string, clientX: number, clientY: number) => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX, clientY });
+      Object.defineProperty(event, "pointerId", { value: 7 });
+      return event;
+    };
+    handle.dispatchEvent(pointerEvent("pointerdown", 660, 510));
+    window.dispatchEvent(pointerEvent("pointermove", 30, 320));
+    window.dispatchEvent(pointerEvent("pointerup", 30, 320));
+
+    widget.shadowRoot?.querySelector<HTMLButtonElement>("[data-expand]")?.click();
+    const reopenFrame = requestFrame.mock.results.at(-1)?.value;
+    expect(reopenFrame).toBeGreaterThan(collapseFrame);
+    callbacks.get(reopenFrame)?.(0);
+    expect(widget.style.top).toBe("12px");
+    expect(widget.shadowRoot?.querySelector("style")?.textContent).toContain(
+      "prefers-reduced-motion: reduce",
+    );
+  });
+
   it("isolates a compact native interface in Shadow DOM", () => {
     const widget = createWidget();
     const shadow = widget.shadowRoot;

@@ -64,6 +64,17 @@ async function closeServer(server: Server): Promise<void> {
   );
 }
 
+export async function activateFixtureInteraction(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const answer = document.querySelector<HTMLElement>("[data-answer]");
+    if (!answer) throw new Error("E2E_ANSWER_FIXTURE_MISSING");
+    if (answer.hasAttribute("data-activated-after-ecoia")) return;
+    answer.setAttribute("data-activated-after-ecoia", "");
+    answer.textContent += " Segment synthétique observé après activation.";
+  });
+  await expect(page.locator("eco-ia-widget [data-session]")).toContainText("1 interaction");
+}
+
 export const test = base.extend<ExtensionFixtures, WorkerFixtures>({
   fixtureOrigin: [
     async ({ browserName: _browserName }, use) => {
@@ -101,6 +112,7 @@ export const test = base.extend<ExtensionFixtures, WorkerFixtures>({
     const page = extensionContext.pages()[0] ?? (await extensionContext.newPage());
     await page.goto(fixtureOrigin);
     await expect(page.locator("eco-ia-widget")).toBeVisible();
+    await activateFixtureInteraction(page);
     await use(page);
   },
 });
