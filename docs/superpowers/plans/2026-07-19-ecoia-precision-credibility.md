@@ -45,6 +45,7 @@
 
 - Create: `src/impact/model-selection.ts`
 - Create: `tests/unit/model-selection.test.ts`
+- Modify: `data/impact-profiles.json`
 - Modify: `src/impact/profile-registry.ts`
 - Modify: `src/adapters/adapter-contract.ts`
 - Modify: `src/adapters/semantic-adapter.ts`
@@ -54,6 +55,7 @@
 - Modify: `tests/adapters/gemini-adapter.test.ts`
 - Modify: `tests/adapters/mistral-adapter.test.ts`
 - Modify: `tests/adapters/perplexity-adapter.test.ts`
+- Modify: `tests/unit/profile-registry.test.ts`
 
 Public contracts:
 
@@ -91,8 +93,10 @@ export function resolveModelProfile(input: {
 - [ ] Write failing tests proving that an actual model element returns `{ label: "GPT-4o", observed: true }` while missing markup returns the existing platform fallback label with `observed: false`.
 - [ ] Write failing tests proving that `getModelProfileOptions("chatgpt")` contains only ChatGPT-compatible profiles, contains the platform generic profile marked `isGeneric: true`, omits the cross-platform internal profile `generic-assistant-v1`, and never returns duplicate IDs.
 - [ ] Write failing resolution tests for the exact precedence: compatible manual profile, recognized observed label, then platform fallback. Add rejection cases for unknown IDs and profiles belonging to another platform.
+- [ ] Write a failing registry test proving every platform fallback has grade D for electricity, water and carbon. Gemini must use a new `google-generic-v1` proxy profile rather than the grade-A Gemini Apps prompt median when no model is observed.
 - [ ] Run `npm test -- tests/unit/model-selection.test.ts tests/adapters`; expect failures caused by the missing module and missing `observed` property.
 - [ ] Add `matchImpactProfileId(platform, modelLabel): string | null` to `profile-registry.ts`. Keep `resolveImpactProfileId` backward compatible by returning the match or the existing platform fallback.
+- [ ] Add `google-generic-v1` as a Gemini-compatible model-proxy profile whose three indicators resolve to the grade-D generic assistant profile, then make it the Gemini platform fallback. Keep the documented Gemini Apps median available as a specific manual or observed option.
 - [ ] Implement `getModelProfileOptions` from the validated bundled registry. Include platform-specific documented profiles and the platform fallback, sort specific profiles before the generic profile, and derive every label from `displayName`.
 - [ ] Implement `resolveModelProfile` without accepting free text. A manual ID wins only when it is present in the current option list; an observed direct match is `automatic`; every fallback is `generic`.
 - [ ] Update `createSemanticAdapter.detectModel` so only a non-empty matching DOM node sets `observed: true`; default labels remain visible but are explicitly marked unobserved.
@@ -242,7 +246,7 @@ export interface WidgetViewModel {
   context: ContextTokenEstimate;
   disclosure: DataQualityDisclosure | null;
   diagnostic: {
-    platform: "recognized";
+    platform: "recognized" | "unsupported";
     conversation: "detected" | "paused";
     model: ModelResolutionSource;
     context: ContextDiagnosticState;
@@ -272,7 +276,7 @@ export interface WidgetConfiguration {
 - [ ] Extend `createWidgetTemplate` with a compact warning region, a labeled native `<select>`, context explanation, data-quality block, source list and diagnostic list inside the existing details section. Use semantic `button`, `label`, `select`, `details`, `summary`, `ul` and `a` elements.
 - [ ] Keep the main panel at 232 px and progressive disclosure inside the existing scrollable area. Avoid animation libraries, icons from packages, remote fonts, graphs and decorative cards.
 - [ ] Move all registry lookups out of `eco-widget.ts`; render only the supplied `DataQualityDisclosure` and keep every external source link hidden until disclosure data exists.
-- [ ] Update `WidgetController` so the warning action opens details and focuses the select, and so the select callback validates against its current option elements before emitting.
+- [ ] Update `WidgetController` so the warning action opens details and focuses the select, and so the select callback validates against an internal `Set` derived from the latest supplied `modelControl.options`, never against mutable option elements in the DOM.
 - [ ] Preserve the 525 ms streaming render interval and update option nodes only when their platform/profile signature changes.
 - [ ] Run `npm test -- tests/unit/widget.test.ts tests/unit/format-impact.test.ts`; expect PASS.
 - [ ] Run `npm run typecheck`, `npm run lint` and `npm run build`; expect PASS and no runtime dependency.
