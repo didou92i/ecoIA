@@ -1,4 +1,8 @@
-import { mistralAdapter } from "../../adapters/mistral/mistral-adapter";
-import { startAdapter } from "../adapter-entry";
+import { mistralSelectors } from "../../adapters/mistral/mistral-selectors";
+import { startSemanticAdapter } from "../adapter-entry";
 
-startAdapter(mistralAdapter);
+startSemanticAdapter({
+  platform: "mistral",
+  defaultModelLabel: "Mistral · modèle non communiqué",
+  selectors: mistralSelectors,
+});

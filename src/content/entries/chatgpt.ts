@@ -1,4 +1,8 @@
-import { chatGptAdapter } from "../../adapters/chatgpt/chatgpt-adapter";
-import { startAdapter } from "../adapter-entry";
+import { chatGptSelectors } from "../../adapters/chatgpt/chatgpt-selectors";
+import { startSemanticAdapter } from "../adapter-entry";
 
-startAdapter(chatGptAdapter);
+startSemanticAdapter({
+  platform: "chatgpt",
+  defaultModelLabel: "ChatGPT · modèle non communiqué",
+  selectors: chatGptSelectors,
+});

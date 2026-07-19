@@ -514,7 +514,8 @@ export class AggregateStore {
         ? storedDeduplication
         : { version: 1, entries: [] };
       const recentDeduplication = deduplication.entries.filter(
-        (entry) => timestamp - entry.updatedAt <= deduplicationLifetimeMs,
+        (entry) =>
+          entry.updatedAt <= timestamp && timestamp - entry.updatedAt <= deduplicationLifetimeMs,
       );
       const previous = eventState.events.find((entry) => entry.eventId === event.eventId) ?? null;
       const duplicate = recentDeduplication.find(

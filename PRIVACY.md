@@ -11,7 +11,9 @@ sont remplacées par des chaînes vides immédiatement après conversion.
 Lorsque des tours précédents sont visibles, leur contexte est converti une seule fois en estimation
 numérique pour l’interaction correspondante, puis la chaîne est vidée. ecoIA ne sait pas si le
 fournisseur a réellement renvoyé tout ou partie de ce contexte ; cette information sert uniquement à
-proposer une borne haute possible.
+proposer une borne haute possible. Ce parcours remonte depuis le tour courant et s’arrête après
+4 096 nœuds DOM visités ou 2 097 152 octets UTF-8. Atteindre l’une de ces bornes produit un contexte
+partiel et évite qu’une page très fragmentée impose un travail sans limite.
 
 Les totaux commencent à partir de l’activation d’ecoIA dans la page. Le dernier tour déjà visible au
 démarrage, au rechargement ou juste après un changement de conversation sert de baseline, même si sa
@@ -19,7 +21,10 @@ réponse est encore en cours. Ce tour reste affiché mais n’est jamais agrég�
 et sa terminaison restent exclues. Recharger au milieu d’une réponse exclut donc le reste de cette
 réponse plutôt que de risquer de compter deux fois sa valeur absolue. Seul un tour utilisateur
 réellement ajouté ensuite devient éligible ; en cas de remplacement ou virtualisation ambiguë du DOM,
-ecoIA préfère sous-compter.
+ecoIA conserve l’identité numérique du dernier tour et préfère sous-compter. Si une nouvelle
+conversation a d’abord été observée vide, une réponse ensuite vue en cours est agrégée comme nouveau
+tour ; une réponse qui apparaît déjà terminée reste exclue par prudence, car elle peut provenir d’un
+historique chargé tardivement.
 
 Aucun prompt, aucun texte de réponse, aucun titre de page, aucune URL complète et aucun identifiant de
 conversation n’est stocké ou transmis au processus d’arrière-plan. Les messages entre composants sont

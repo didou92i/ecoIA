@@ -1,4 +1,8 @@
-import { claudeAdapter } from "../../adapters/claude/claude-adapter";
-import { startAdapter } from "../adapter-entry";
+import { claudeSelectors } from "../../adapters/claude/claude-selectors";
+import { startSemanticAdapter } from "../adapter-entry";
 
-startAdapter(claudeAdapter);
+startSemanticAdapter({
+  platform: "claude",
+  defaultModelLabel: "Claude · modèle non communiqué",
+  selectors: claudeSelectors,
+});

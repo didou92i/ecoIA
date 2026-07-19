@@ -4,6 +4,7 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { PlatformAdapter } from "../../src/adapters/adapter-contract";
+import { visibleContextDomNodeLimit } from "../../src/adapters/semantic-adapter";
 import { tokenCalibration } from "../../src/token/calibration";
 
 interface AdapterContractOptions {
@@ -195,6 +196,38 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       expect(new TextEncoder().encode(context.text).byteLength).toBeLessThanOrEqual(
         tokenCalibration.maximumUtf8Bytes,
       );
+    });
+
+    it("bounds DOM work when old context contains adversarial empty text nodes", () => {
+      const root = requireRoot(options.adapter);
+      const userTemplate = root.querySelector(options.userSelector);
+      const assistantTemplate = root.querySelector(options.assistantSelector);
+      if (!userTemplate || !assistantTemplate) throw new Error("MISSING_TURN_FIXTURE");
+
+      let oldTextReads = 0;
+      const oldUser = userTemplate.cloneNode(false) as Element;
+      for (let index = 0; index < visibleContextDomNodeLimit * 2; index += 1) {
+        const whitespace = document.createTextNode(" ");
+        Object.defineProperty(whitespace, "data", {
+          configurable: true,
+          get() {
+            oldTextReads += 1;
+            return " ";
+          },
+        });
+        oldUser.append(whitespace);
+      }
+      const recentAssistant = assistantTemplate.cloneNode(false) as Element;
+      recentAssistant.textContent = "Contexte récent conservé.";
+      const currentUser = userTemplate.cloneNode(false) as Element;
+      currentUser.textContent = "Prompt courant exclu.";
+      root.replaceChildren(oldUser, recentAssistant, currentUser);
+
+      const context = options.adapter.readVisibleContext(root, currentUser);
+
+      expect(context.text).toBe("Contexte récent conservé.");
+      expect(context.coverage).toBe("partial");
+      expect(oldTextReads).toBeLessThanOrEqual(visibleContextDomNodeLimit);
     });
 
     it("detects an SPA conversation marker change without exposing it", () => {

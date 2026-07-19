@@ -106,6 +106,12 @@ describe("open-source documentation", () => {
 
     expect(readme).toMatch(/choix manuel[\s\S]*navigation ou[\s\S]*rechargement/iu);
     expect(readme).toMatch(/borne haute possible[\s\S]*pas[\s\S]*preuve[\s\S]*fournisseur/iu);
+    expect(`${readme}\n${methodology}\n${privacy}`).toMatch(
+      /4 096 nœuds DOM[\s\S]*2 097 152 octets UTF-8[\s\S]*partiel/iu,
+    );
+    expect(`${readme}\n${privacy}`).toMatch(
+      /conversation (?:observée|a d.abord été observée) vide[\s\S]*réponse[\s\S]*en cours[\s\S]*(?:nouveau|agrégée)/iu,
+    );
     expect(methodology).toContain("A — donnée fournisseur documentée pour un périmètre comparable");
     expect(methodology).toContain(
       "`high` : borne haute du prompt courant plus borne haute du contexte",

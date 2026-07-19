@@ -1,10 +1,14 @@
-import type { PlatformAdapter } from "../adapters/adapter-contract";
-import type { StartEcoIaContentScript } from "./core-entry";
+import type { SemanticAdapterConfiguration } from "../adapters/semantic-adapter";
+import type { CreateEcoIaSemanticAdapter, StartEcoIaContentScript } from "./core-entry";
 
-export function startAdapter(adapter: PlatformAdapter): void {
+export function startSemanticAdapter(configuration: SemanticAdapterConfiguration): void {
   const contentGlobal = globalThis as typeof globalThis & {
     __ecoIAStartContentScript?: StartEcoIaContentScript;
+    __ecoIACreateSemanticAdapter?: CreateEcoIaSemanticAdapter;
   };
   const start = contentGlobal.__ecoIAStartContentScript;
-  if (typeof start === "function") void start(adapter).catch(() => undefined);
+  const createAdapter = contentGlobal.__ecoIACreateSemanticAdapter;
+  if (typeof start === "function" && typeof createAdapter === "function") {
+    void start(createAdapter(configuration)).catch(() => undefined);
+  }
 }

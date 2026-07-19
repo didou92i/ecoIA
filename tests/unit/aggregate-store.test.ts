@@ -537,6 +537,29 @@ describe("aggregate store", () => {
     expect(local.values["ecoia.dedupe.v1"]).toEqual({ version: 1, entries: [] });
   });
 
+  it("prunes deduplication entries that are in the future after a clock rollback", async () => {
+    const local = new MemoryStorageArea();
+    const session = new MemoryStorageArea();
+    let timestamp = 1_721_318_400_000;
+    const store = new AggregateStore({
+      local,
+      session,
+      now: () => timestamp,
+      localDate: () => "2026-07-18",
+    });
+    await store.processEvent(event("event-before-rollback", "tab-before-rollback", 1, 10));
+
+    timestamp -= 60 * 60 * 1_000;
+    await store.processEvent(event("event-after-rollback", "tab-after-rollback", 1, 10));
+
+    const deduplication = local.values["ecoia.dedupe.v1"] as {
+      entries: Array<{ eventId: string }>;
+    };
+    expect(deduplication.entries.map(({ eventId }) => eventId)).toEqual([
+      eventUuid("event-after-rollback"),
+    ]);
+  });
+
   it("uses bounded in-memory session storage when storage.session is unavailable", async () => {
     const local = new MemoryStorageArea();
     const store = new AggregateStore({

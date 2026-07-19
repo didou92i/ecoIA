@@ -90,7 +90,9 @@ charge.
 4. La ligne « Contexte visible » peut apparaître quand des échanges précédents sont encore dans la
    page. ecoIA les ajoute seulement à la borne haute possible de l’entrée. Ce contexte visible
    n’est pas une preuve du contexte réellement traité par le fournisseur, qui peut le tronquer,
-   le résumer, le mettre en cache ou l’enrichir.
+   le résumer, le mettre en cache ou l’enrichir. Pour rester léger, ecoIA remonte depuis le tour
+   courant et s’arrête après 4 096 nœuds DOM visités ou 2 097 152 octets UTF-8 ; le contexte est
+   alors signalé comme partiel.
 5. Les grades A à D décrivent la qualité des données et de leur adaptation, pas la précision de la
    conversation courante. La section « Diagnostic » explique localement l’état de la plateforme,
    de la conversation, du modèle, du contexte et de la réponse ; elle ne montre pas de texte de
@@ -103,7 +105,9 @@ leurs textes visibles sont cumulés pour l’estimation. Consultez
 Les totaux commencent à partir de l’activation d’ecoIA. Lors d’un rechargement, le tour déjà visible
 reste estimé à l’écran mais demeure entièrement hors agrégation, même si sa réponse était en cours :
 la suite après rechargement est exclue pour éviter tout double comptage. Seul un tour réellement ajouté
-ensuite peut être agrégé.
+ensuite peut être agrégé. Après l’ouverture d’une conversation observée vide, une réponse vue en cours
+est considérée comme nouvellement créée ; une réponse qui apparaît déjà terminée reste une baseline
+prudente afin de ne pas compter un historique chargé tardivement.
 
 ## Confidentialité
 

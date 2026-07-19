@@ -15,7 +15,7 @@ export interface SemanticAdapterSelectors {
   conversationMarkers: string[];
 }
 
-interface SemanticAdapterConfiguration {
+export interface SemanticAdapterConfiguration {
   platform: PlatformId;
   defaultModelLabel: string;
   selectors: SemanticAdapterSelectors;
@@ -84,43 +84,90 @@ function appearsBefore(left: Element, right: Element): boolean {
 
 const utf8Encoder = new TextEncoder();
 
+export const visibleContextDomNodeLimit = 4_096;
+
+interface DomWorkBudget {
+  remaining: number;
+}
+
+function consumeDomWork(budget: DomWorkBudget): boolean {
+  if (budget.remaining <= 0) return false;
+  budget.remaining -= 1;
+  return true;
+}
+
+function elementIsHidden(element: Element): boolean {
+  return (
+    element.hasAttribute("hidden") ||
+    element.getAttribute("aria-hidden") === "true" ||
+    element.getAttribute("inert") !== null ||
+    (element instanceof HTMLElement &&
+      (element.style.display === "none" || element.style.visibility === "hidden"))
+  );
+}
+
+function textBelongsToVisibleTurn(
+  node: Text,
+  root: HTMLElement,
+  turnSelectors: string[],
+  excludedSelectors: string[],
+  budget: DomWorkBudget,
+): boolean | null {
+  let belongsToTurn = false;
+  for (let current = node.parentElement; current; current = current.parentElement) {
+    if (!consumeDomWork(budget)) return null;
+    if (elementIsHidden(current)) return false;
+    if (excludedSelectors.some((selector) => current.matches(selector))) return false;
+    if (turnSelectors.some((selector) => current.matches(selector))) belongsToTurn = true;
+    if (current === root) return belongsToTurn;
+  }
+  return false;
+}
+
 function readRecentVisibleContext(
-  candidates: Element[],
+  root: HTMLElement,
+  turnElement: Element,
+  turnSelectors: string[],
   excludedSelectors: string[],
   maximumUtf8Bytes: number,
 ): { text: string; coverage: "complete" | "partial" } {
   const selectedNewestFirst: string[] = [];
   let remainingUtf8Bytes = Math.max(0, maximumUtf8Bytes);
-  for (let index = candidates.length - 1; index >= 0; index -= 1) {
-    const candidate = candidates[index];
-    if (!candidate) continue;
-    const walker = document.createTreeWalker(candidate, NodeFilter.SHOW_TEXT);
-    let latestTextNode: Text | null = null;
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      if (node instanceof Text) latestTextNode = node;
+  const formatSelected = () => selectedNewestFirst.slice().reverse().join(" ");
+  if (!root.contains(turnElement)) return { text: "", coverage: "partial" };
+
+  const budget: DomWorkBudget = { remaining: visibleContextDomNodeLimit };
+  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ALL);
+  walker.currentNode = turnElement;
+  while (consumeDomWork(budget)) {
+    const node = walker.previousNode();
+    if (!node) return { text: formatSelected(), coverage: "complete" };
+    if (!(node instanceof Text)) continue;
+    const belongsToVisibleTurn = textBelongsToVisibleTurn(
+      node,
+      root,
+      turnSelectors,
+      excludedSelectors,
+      budget,
+    );
+    if (belongsToVisibleTurn === null) {
+      return { text: formatSelected(), coverage: "partial" };
     }
-    if (!latestTextNode) continue;
-    walker.currentNode = latestTextNode;
-    for (let node: Node | null = latestTextNode; node; node = walker.previousNode()) {
-      if (!(node instanceof Text) || textIsExcluded(node, excludedSelectors)) continue;
-      const separatorBytes = selectedNewestFirst.length > 0 ? 1 : 0;
-      if (remainingUtf8Bytes <= separatorBytes) {
-        return { text: selectedNewestFirst.reverse().join(" "), coverage: "partial" };
-      }
-      const fragment = selectRecentNormalizedUtf8Text(
-        node.data,
-        remainingUtf8Bytes - separatorBytes,
-      );
-      if (fragment.text) {
-        selectedNewestFirst.push(fragment.text);
-        remainingUtf8Bytes -= utf8Encoder.encode(fragment.text).byteLength + separatorBytes;
-      }
-      if (fragment.coverage === "partial") {
-        return { text: selectedNewestFirst.reverse().join(" "), coverage: "partial" };
-      }
+    if (!belongsToVisibleTurn) continue;
+    const separatorBytes = selectedNewestFirst.length > 0 ? 1 : 0;
+    if (remainingUtf8Bytes <= separatorBytes) {
+      return { text: formatSelected(), coverage: "partial" };
+    }
+    const fragment = selectRecentNormalizedUtf8Text(node.data, remainingUtf8Bytes - separatorBytes);
+    if (fragment.text) {
+      selectedNewestFirst.push(fragment.text);
+      remainingUtf8Bytes -= utf8Encoder.encode(fragment.text).byteLength + separatorBytes;
+    }
+    if (fragment.coverage === "partial") {
+      return { text: formatSelected(), coverage: "partial" };
     }
   }
-  return { text: selectedNewestFirst.reverse().join(" "), coverage: "complete" };
+  return { text: formatSelected(), coverage: "partial" };
 }
 
 function markerFromDocument(document: Document, selectors: string[]): string | null {
@@ -186,12 +233,10 @@ export function createSemanticAdapter(
       };
     },
     readVisibleContext(root, turnElement) {
-      const candidates = queryAll(root, [
-        ...selectors.userTurns,
-        ...selectors.assistantTurns,
-      ]).filter((candidate) => appearsBefore(candidate, turnElement));
       return readRecentVisibleContext(
-        candidates,
+        root,
+        turnElement,
+        [...selectors.userTurns, ...selectors.assistantTurns],
         selectors.excludedContent,
         tokenCalibration.maximumUtf8Bytes,
       );

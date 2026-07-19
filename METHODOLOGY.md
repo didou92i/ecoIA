@@ -66,7 +66,10 @@ ce contexte visible existe, l’enveloppe utilisée pour les impacts est :
 
 Le contexte visible ne change donc pas la valeur centrale : il représente une borne haute possible.
 Il ne prouve pas le contexte réel reçu par le fournisseur. Celui-ci peut tronquer, résumer, mettre
-en cache ou enrichir ce contexte avec des données qu’ecoIA ne voit pas.
+en cache ou enrichir ce contexte avec des données qu’ecoIA ne voit pas. La lecture parcourt le DOM en
+sens inverse depuis le tour courant, sans matérialiser ni trier tout l’historique. Elle s’arrête après
+4 096 nœuds DOM visités ou 2 097 152 octets UTF-8 retenus ; atteindre une borne marque le contexte
+comme partiel.
 
 ### Gemini Apps
 

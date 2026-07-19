@@ -1,4 +1,8 @@
-import { geminiAdapter } from "../../adapters/gemini/gemini-adapter";
-import { startAdapter } from "../adapter-entry";
+import { geminiSelectors } from "../../adapters/gemini/gemini-selectors";
+import { startSemanticAdapter } from "../adapter-entry";
 
-startAdapter(geminiAdapter);
+startSemanticAdapter({
+  platform: "gemini",
+  defaultModelLabel: "Gemini · modèle non communiqué",
+  selectors: geminiSelectors,
+});

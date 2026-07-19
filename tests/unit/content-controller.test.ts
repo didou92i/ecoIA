@@ -584,6 +584,54 @@ describe("content controller", () => {
     expect(updates.at(-1)?.diagnostic.response).toBe("complete");
   });
 
+  it("keeps one logical interaction when an accepted active turn and root are rerendered", async () => {
+    const adapter = new FakeAdapter();
+    const harness = createIntegratedHarness(adapter);
+    await harness.controller.start();
+
+    const replacementTurn = document.createElement("article");
+    adapter.root.replaceChildren(replacementTurn);
+    adapter.snapshot = {
+      turnElement: replacementTurn,
+      promptText: "Texte privé du prompt",
+      responseText: "Réponse plus longue après remplacement de l’ancre.",
+      phase: "streaming",
+    };
+    await harness.controller.refresh();
+
+    const replacementRoot = document.createElement("main");
+    const replacementAfterRootChange = document.createElement("article");
+    replacementRoot.append(replacementAfterRootChange);
+    adapter.root = replacementRoot;
+    adapter.snapshot = {
+      turnElement: replacementAfterRootChange,
+      promptText: "Texte privé du prompt",
+      responseText: "Réponse encore plus longue après remplacement de la racine.",
+      phase: "streaming",
+    };
+    await harness.controller.refresh();
+
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      responseText: "Réponse terminée après les deux rerendus.",
+      phase: "completed",
+    };
+    await harness.controller.refresh();
+
+    const sent = numericMessages(harness.messages) as Array<{
+      eventId: string;
+      sequence: number;
+    }>;
+    expect(new Set(sent.map(({ eventId }) => eventId)).size).toBe(1);
+    expect(sent.map(({ sequence }) => sequence)).toEqual([1, 2, 3, 4]);
+    expect(harness.updates.at(-1)).toMatchObject({
+      session: { interactionCount: 1 },
+      day: { interactionCount: 1 },
+    });
+    harness.controller.stop();
+    harness.cleanupWorker();
+  });
+
   it("retries an unacknowledged numeric signature with the same event identity and sequence", async () => {
     const harness = createHarness(new FakeAdapter(), [
       { ok: false, error: "PROCESSING_FAILED" },
@@ -806,6 +854,36 @@ describe("content controller", () => {
     };
     await controller.refresh();
     expect(numericMessages(messages)).toHaveLength(sentBeforeNavigation + 1);
+  });
+
+  it("counts the first streaming turn created after a confirmed empty SPA transition", async () => {
+    const adapter = new FakeAdapter();
+    const harness = createIntegratedHarness(adapter);
+    await harness.controller.start();
+    const sentBeforeNavigation = numericMessages(harness.messages).length;
+
+    adapter.marker = "conversation-empty-new";
+    adapter.root.replaceChildren();
+    adapter.snapshot = null;
+    await harness.controller.refresh();
+
+    const firstNewTurn = document.createElement("article");
+    adapter.root.append(firstNewTurn);
+    adapter.snapshot = {
+      turnElement: firstNewTurn,
+      promptText: "Premier prompt réellement créé dans la conversation vide.",
+      responseText: "Première réponse en cours.",
+      phase: "streaming",
+    };
+    await harness.controller.refresh();
+
+    expect(numericMessages(harness.messages)).toHaveLength(sentBeforeNavigation + 1);
+    expect(harness.updates.at(-1)).toMatchObject({
+      session: { interactionCount: 1 },
+      day: { interactionCount: 2 },
+    });
+    harness.controller.stop();
+    harness.cleanupWorker();
   });
 
   it("keeps a terminal baseline display-only when its DOM anchor is replaced", async () => {

@@ -31,6 +31,7 @@ interface TurnState {
 interface BaselinePending {
   reason: "initial" | "conversation-change";
   previousTurnElement: Element | null;
+  observedEmpty: boolean;
 }
 
 interface BaselineTurn {
@@ -208,6 +209,7 @@ export class ContentController {
   private baselinePending: BaselinePending | null = {
     reason: "initial",
     previousTurnElement: null,
+    observedEmpty: false,
   };
   private baselineTurn: BaselineTurn | null = null;
   private lastObservedTurnElement: Element | null = null;
@@ -322,7 +324,11 @@ export class ContentController {
     this.selectionError = null;
     this.contextEstimates = new WeakMap<Element, ContextTokenEstimate>();
     this.turnStates = new WeakMap<Element, TurnState>();
-    this.baselinePending = { reason: "conversation-change", previousTurnElement };
+    this.baselinePending = {
+      reason: "conversation-change",
+      previousTurnElement,
+      observedEmpty: false,
+    };
     this.baselineTurn = null;
     this.conversationMarker = nextMarker;
     this.viewModel = { ...this.viewModel, session: null };
@@ -382,6 +388,7 @@ export class ContentController {
     const snapshot = this.adapter.readLatestTurn(root);
     if (!snapshot) {
       if (this.baselinePending?.reason === "initial") this.baselinePending = null;
+      else if (this.baselinePending) this.baselinePending.observedEmpty = true;
       this.viewModel = {
         ...this.viewModel,
         state: "active",
@@ -398,6 +405,7 @@ export class ContentController {
       widget.update(this.viewModel);
       return;
     }
+    this.rebindReplacedTurnState(root, snapshot);
     const baselineSnapshot = this.isBaselineSnapshot(root, snapshot);
     await this.processSnapshot(root, snapshot, detected, widget, baselineSnapshot);
     this.lastObservedTurnElement = snapshot.turnElement;
@@ -411,6 +419,15 @@ export class ContentController {
         snapshot.turnElement === pending.previousTurnElement
       ) {
         return true;
+      }
+      if (
+        pending.reason === "conversation-change" &&
+        pending.observedEmpty &&
+        snapshot.phase === "streaming"
+      ) {
+        this.baselinePending = null;
+        this.baselineTurn = null;
+        return false;
       }
       this.baselinePending = null;
       this.baselineTurn = {
@@ -435,6 +452,21 @@ export class ContentController {
     }
     this.baselineTurn = null;
     return false;
+  }
+
+  private rebindReplacedTurnState(root: HTMLElement, snapshot: VisibleTurnSnapshot): void {
+    const previousTurnElement = this.lastObservedTurnElement;
+    if (
+      !previousTurnElement ||
+      previousTurnElement === snapshot.turnElement ||
+      root.contains(previousTurnElement)
+    ) {
+      return;
+    }
+    const previousState = this.turnStates.get(previousTurnElement);
+    if (previousState) this.turnStates.set(snapshot.turnElement, previousState);
+    const previousContext = this.contextEstimates.get(previousTurnElement);
+    if (previousContext) this.contextEstimates.set(snapshot.turnElement, previousContext);
   }
 
   private createModelControl(resolution: ModelResolution): WidgetViewModel["modelControl"] {

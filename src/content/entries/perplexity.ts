@@ -1,4 +1,8 @@
-import { perplexityAdapter } from "../../adapters/perplexity/perplexity-adapter";
-import { startAdapter } from "../adapter-entry";
+import { perplexitySelectors } from "../../adapters/perplexity/perplexity-selectors";
+import { startSemanticAdapter } from "../adapter-entry";
 
-startAdapter(perplexityAdapter);
+startSemanticAdapter({
+  platform: "perplexity",
+  defaultModelLabel: "Perplexity · modèle non communiqué",
+  selectors: perplexitySelectors,
+});
