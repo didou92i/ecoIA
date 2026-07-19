@@ -21,11 +21,48 @@ qualifie la provenance de chaque indicateur :
 
 Le niveau A ne transforme pas une médiane par prompt en mesure exacte de la réponse courante.
 
+Les formulations affichées dans l’extension sont les suivantes :
+
+- A — donnée fournisseur documentée pour un périmètre comparable ;
+- B — donnée publiée avec adaptation limitée ;
+- C — estimation modélisée à partir de données publiées ;
+- D — proxy générique avec forte incertitude.
+
+Le grade global est le moins bon des grades de l’électricité, de l’eau et du carbone. Chaque
+indicateur conserve son propre grade dans le détail. Ces grades qualifient la conception et la
+provenance du profil ; ils ne prouvent pas que le fournisseur a mesuré l’interaction affichée.
+
 ## Profils et provenance
 
 Le registre machine-readable est `data/impact-profiles.json`. Une modification est refusée par les
 tests si un profil n’a pas de source HTTPS, de date, de périmètre, de limites, d’unité reconnue ou de
 fourchette valide. Les proxys circulaires sont également interdits.
+
+### Revue de fraîcheur des sources
+
+Chaque source du registre a une `accessedDate`. La commande `npm run source-freshness` lit
+uniquement `data/impact-profiles.json` avec les bibliothèques standard de Node.js. Elle demande une
+revue si une date d’accès a plus de 366 jours strictement ; une source à exactement 366 jours reste
+acceptée. Les identifiants des sources à revoir sont affichés dans un ordre stable et la commande
+sort avec un code non nul. Une date source ou date de revue invalide arrête aussi la vérification.
+
+Cette commande ne télécharge aucune URL, n’écrit aucun fichier et ne modifie jamais les coefficients
+automatiquement. `npm run verify` l’exécute avant le build : une revue consiste donc à vérifier la
+source humainement, à mettre à jour le registre et les calculs associés, puis à livrer une nouvelle
+version de l’extension.
+
+## Contexte conversationnel visible
+
+ecoIA estime séparément le prompt courant et les tours précédents encore visibles dans la page. Si
+ce contexte visible existe, l’enveloppe utilisée pour les impacts est :
+
+- `low` : borne basse du prompt courant ;
+- `central` : estimation centrale du prompt courant ;
+- `high` : borne haute du prompt courant plus borne haute du contexte antérieur visible.
+
+Le contexte visible ne change donc pas la valeur centrale : il représente une borne haute possible.
+Il ne prouve pas le contexte réel reçu par le fournisseur. Celui-ci peut tronquer, résumer, mettre
+en cache ou enrichir ce contexte avec des données qu’ecoIA ne voit pas.
 
 ### Gemini Apps
 
@@ -104,7 +141,8 @@ Une équivalence facilite la compréhension ; ce n’est pas une consommation su
 ## Limites communes
 
 - Seuls les tokens du prompt et de la réponse visibles sont estimés.
-- Le raisonnement caché, le contexte système, le cache, les outils et les médias sont exclus.
+- Le raisonnement caché, le contexte système, le cache, les outils et les médias sont exclus ; le
+  contexte visible ne permet pas de les déduire.
 - La région et le centre de données ne sont pas déduits de la position de l’utilisateur.
 - Les profils opérationnels et les analyses de cycle de vie n’ont pas le même périmètre.
 - Les pratiques des fournisseurs et leur efficacité changent dans le temps.

@@ -23,6 +23,7 @@ const requiredScripts = [
   "size",
   "e2e",
   "audit",
+  "source-freshness",
   "verify",
 ] as const;
 
@@ -44,5 +45,13 @@ describe("project configuration", () => {
 
   it.each(requiredScripts)("defines the %s script", (scriptName) => {
     expect(packageJson.scripts).toHaveProperty(scriptName);
+  });
+
+  it("checks source freshness before building during verification", () => {
+    const verifyScript = packageJson.scripts.verify;
+    expect(verifyScript).toContain("npm run source-freshness");
+    expect(verifyScript.indexOf("npm run source-freshness")).toBeLessThan(
+      verifyScript.indexOf("npm run build"),
+    );
   });
 });

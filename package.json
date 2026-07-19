@@ -19,9 +19,10 @@
     "size": "node scripts/check-size.mjs",
     "checksums": "node scripts/create-checksums.mjs",
     "secrets": "node scripts/check-secrets.mjs",
+    "source-freshness": "node scripts/check-source-freshness.mjs",
     "e2e": "npm run build:e2e && playwright test",
     "audit": "npm audit --omit=dev",
-    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run build && npm run size"
+    "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run source-freshness && npm run build && npm run size"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.4",

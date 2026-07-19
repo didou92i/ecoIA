@@ -75,12 +75,28 @@ Vous pouvez le déplacer, l’ancrer avec les flèches, le replier ou changer de
 l’icône ecoIA dans la barre du navigateur ouvre ou replie aussi le panneau sur une page prise en
 charge.
 
-Le signe `≈` désigne l’estimation centrale. La ligne « de … à … » présente la borne basse et la
-borne haute sans les confondre avec une soustraction. Une question et ses éventuels segments de
-réponse visibles comptent comme une seule interaction ; leurs textes visibles sont cumulés pour
-l’estimation. Les grades A à D décrivent la qualité de provenance, pas la précision de la
-conversation courante. Consultez [la méthodologie](METHODOLOGY.md) et
-[la calibration des tokens](docs/token-calibration.md).
+1. Laissez « Détection automatique » lorsque le panneau reconnaît le modèle affiché par la
+   plateforme. ecoIA applique alors le profil documenté correspondant. Si le modèle n’est pas
+   communiqué, le panneau l’indique et utilise un profil générique plus incertain.
+2. Lisez `≈` comme « environ » : c’est l’estimation centrale, pas une mesure du fournisseur. La
+   ligne « de … à … » écrit séparément la borne basse et la borne haute possible ; ce n’est pas une
+   soustraction ni une promesse de précision.
+3. Vous pouvez ouvrir « Méthode et détails » et choisir un modèle compatible avec la plateforme si
+   la détection est incorrecte. Ce choix manuel est gardé uniquement en mémoire pour la
+   conversation active : il disparaît lors d’une navigation ou d’un rechargement de page, y compris
+   lorsqu’une nouvelle conversation est affichée sans quitter la plateforme.
+4. La ligne « Contexte visible » peut apparaître quand des échanges précédents sont encore dans la
+   page. ecoIA les ajoute seulement à la borne haute possible de l’entrée. Ce contexte visible
+   n’est pas une preuve du contexte réellement traité par le fournisseur, qui peut le tronquer,
+   le résumer, le mettre en cache ou l’enrichir.
+5. Les grades A à D décrivent la qualité des données et de leur adaptation, pas la précision de la
+   conversation courante. La section « Diagnostic » explique localement l’état de la plateforme,
+   de la conversation, du modèle, du contexte et de la réponse ; elle ne montre pas de texte de
+   conversation ni de lien ou identifiant.
+
+Une question et ses éventuels segments de réponse visibles comptent comme une seule interaction ;
+leurs textes visibles sont cumulés pour l’estimation. Consultez
+[la méthodologie](METHODOLOGY.md) et [la calibration des tokens](docs/token-calibration.md).
 
 ## Confidentialité
 
@@ -113,6 +129,7 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm test
+npm run source-freshness
 npm run e2e
 npm run audit
 npm run secrets

@@ -69,6 +69,23 @@ describe("open-source documentation", () => {
     expect(await read("docs/adding-an-impact-profile.md")).toContain("impact-profiles.json");
   });
 
+  it("explains V2 precision boundaries without suggesting provider access", async () => {
+    const readme = await read("README.md");
+    const methodology = await read("METHODOLOGY.md");
+    const privacy = await read("PRIVACY.md");
+    const contributorGuide = await read("docs/adding-an-impact-profile.md");
+
+    expect(readme).toMatch(/choix manuel[\s\S]*navigation ou[\s\S]*rechargement/iu);
+    expect(readme).toMatch(/borne haute possible[\s\S]*pas[\s\S]*preuve[\s\S]*fournisseur/iu);
+    expect(methodology).toContain("A — donnée fournisseur documentée pour un périmètre comparable");
+    expect(methodology).toContain(
+      "`high` : borne haute du prompt courant plus borne haute du contexte",
+    );
+    expect(privacy).toMatch(/uniquement[\s\S]*mémoire[\s\S]*jamais[\s\S]*storage/iu);
+    expect(privacy).toMatch(/aucun texte[\s\S]*URL[\s\S]*identifiant/iu);
+    expect(contributorGuide).toContain("npm run source-freshness");
+  });
+
   it("keeps CI read-only and pins official actions by commit SHA", async () => {
     const workflow = await read(".github/workflows/ci.yml");
     expect(workflow).toContain("contents: read");
