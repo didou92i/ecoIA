@@ -48,6 +48,7 @@ class FakeAdapter implements PlatformAdapter {
   subscribedListener: (() => void) | null = null;
   cleanup = vi.fn();
   rootAvailable = true;
+  findRootCallCount = 0;
 
   constructor() {
     this.root.append(this.turnElement);
@@ -57,6 +58,7 @@ class FakeAdapter implements PlatformAdapter {
     return { label: this.model, observed: this.modelObserved };
   }
   findConversationRoot() {
+    this.findRootCallCount += 1;
     return this.rootAvailable ? this.root : null;
   }
   readLatestTurn() {
@@ -103,8 +105,11 @@ function activateSnapshotAfterStart(controller: ContentController, adapter: Fake
   const start = controller.start.bind(controller);
   controller.start = async () => {
     const snapshot = adapter.snapshot;
+    const marker = adapter.marker;
     adapter.snapshot = null;
+    adapter.marker = null;
     await start();
+    adapter.marker = marker;
     adapter.snapshot = snapshot;
     if (snapshot) await controller.refresh();
   };
@@ -744,6 +749,37 @@ describe("content controller", () => {
     harness.cleanupWorker();
   });
 
+  it("counts a distinct terminal interaction that replaces the previous DOM anchor", async () => {
+    const adapter = new FakeAdapter();
+    const harness = createIntegratedHarness(adapter);
+    await harness.controller.start();
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      responseText: "Première réponse terminée.",
+      phase: "completed",
+    };
+    await harness.controller.refresh();
+
+    const nextTurn = document.createElement("article");
+    adapter.root.replaceChildren(nextTurn);
+    adapter.snapshot = {
+      turnElement: nextTurn,
+      promptText: "Deuxième prompt distinct déjà terminé.",
+      responseText: "Deuxième réponse déjà terminée.",
+      phase: "completed",
+    };
+    await harness.controller.refresh();
+
+    const sent = numericMessages(harness.messages) as Array<{ eventId: string }>;
+    expect(new Set(sent.map(({ eventId }) => eventId)).size).toBe(2);
+    expect(harness.updates.at(-1)).toMatchObject({
+      session: { interactionCount: 2 },
+      day: { interactionCount: 2 },
+    });
+    harness.controller.stop();
+    harness.cleanupWorker();
+  });
+
   it("counts a new streaming turn that replaces a pre-existing terminal baseline", async () => {
     const adapter = new FakeAdapter();
     adapter.snapshot = { ...requireSnapshot(adapter), phase: "completed" };
@@ -1019,6 +1055,38 @@ describe("content controller", () => {
     controller.stop();
   });
 
+  it("keeps an existing conversation hydrated as streaming after start in the baseline", async () => {
+    const adapter = new FakeAdapter();
+    adapter.snapshot = null;
+    const { controller, messages } = createHarness(adapter, [], { snapshotAlreadyPresent: true });
+    await controller.start();
+
+    const hydratedTurn = document.createElement("article");
+    adapter.root.replaceChildren(hydratedTurn);
+    adapter.snapshot = {
+      turnElement: hydratedTurn,
+      promptText: "Prompt existant hydraté après le chargement.",
+      responseText: "Réponse existante encore en cours.",
+      phase: "streaming",
+    };
+    await controller.refresh();
+    adapter.snapshot = { ...requireSnapshot(adapter), phase: "completed" };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(0);
+
+    const nextTurn = document.createElement("article");
+    adapter.root.append(nextTurn);
+    adapter.snapshot = {
+      turnElement: nextTurn,
+      promptText: "Premier prompt créé après l’activation.",
+      responseText: "Première réponse active.",
+      phase: "streaming",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(1);
+    controller.stop();
+  });
+
   it("counts the first streaming turn created after a confirmed empty SPA transition", async () => {
     const adapter = new FakeAdapter();
     const harness = createIntegratedHarness(adapter);
@@ -1211,5 +1279,53 @@ describe("content controller", () => {
     document.body.replaceChildren(replacementRoot);
     await vi.waitFor(() => expect(adapter.cleanup).toHaveBeenCalledOnce());
     controller.stop();
+  });
+
+  it("rearms root presence tracking after the same root moves to a new parent", async () => {
+    const adapter = new FakeAdapter();
+    const firstParent = document.createElement("section");
+    const secondParent = document.createElement("section");
+    document.body.append(firstParent, secondParent);
+    firstParent.append(adapter.root);
+    const { controller } = createHarness(adapter);
+    await controller.start();
+
+    const callsBeforeMove = adapter.findRootCallCount;
+    secondParent.append(adapter.root);
+    await vi.waitFor(() => expect(adapter.findRootCallCount).toBeGreaterThan(callsBeforeMove));
+
+    const replacementRoot = document.createElement("main");
+    adapter.root = replacementRoot;
+    secondParent.replaceChildren(replacementRoot);
+    await vi.waitFor(() => expect(adapter.cleanup).toHaveBeenCalledOnce());
+    controller.stop();
+  });
+
+  it("throttles root discovery during mutation bursts while the root is absent", async () => {
+    vi.useFakeTimers();
+    try {
+      const adapter = new FakeAdapter();
+      adapter.rootAvailable = false;
+      const { controller } = createHarness(adapter);
+      await controller.start();
+      const callsAfterStart = adapter.findRootCallCount;
+
+      const mutationContainer = document.createElement("div");
+      document.body.append(mutationContainer);
+      for (let index = 0; index < 50; index += 1) {
+        mutationContainer.append(document.createElement("span"));
+      }
+      await Promise.resolve();
+      await Promise.resolve();
+      expect(adapter.findRootCallCount).toBe(callsAfterStart);
+
+      await vi.advanceTimersByTimeAsync(499);
+      expect(adapter.findRootCallCount).toBe(callsAfterStart);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(adapter.findRootCallCount).toBe(callsAfterStart + 1);
+      controller.stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

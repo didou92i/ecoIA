@@ -208,7 +208,10 @@ mois, sans tenter de modifier automatiquement les coefficients.
 - aucun texte conservé dans le stockage ou envoyé au service worker ;
 - sélecteur limité à une liste issue du registre validé ;
 - lecture et calculs DOM toujours limités à la conversation ; seule sa présence structurelle est
-  surveillée temporairement pendant une découverte ou un remplacement de racine ;
+  surveillée temporairement pendant une découverte ou un remplacement de racine, avec au plus deux
+  recherches par seconde lorsqu’elle est absente ;
+- seules des empreintes salées éphémères restent en mémoire pour distinguer un rerendu du même tour
+  d’une nouvelle interaction ; elles ne sont ni stockées ni transmises ;
 - contexte converti une fois par interaction, puis conservé uniquement sous forme numérique ;
 - paquet compressé toujours inférieur à 150 Ko ;
 - au maximum deux rendus visuels par seconde pendant le streaming.

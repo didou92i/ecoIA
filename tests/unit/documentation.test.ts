@@ -121,6 +121,8 @@ describe("open-source documentation", () => {
     expect(privacy).toMatch(
       /observateur structurel temporaire[\s\S]*ne lit aucun texte hors conversation/iu,
     );
+    expect(privacy).toMatch(/deux fois par seconde[\s\S]*empreintes éphémères salées/iu);
+    expect(privacy).toMatch(/empreintes éphémères[\s\S]*ne quittent jamais le script de contenu/iu);
     expect(contributorGuide).toContain("npm run source-freshness");
     expect(contributorGuide).toMatch(
       /tests\/unit\/model-selection\.test\.ts[\s\S]*tests\/unit\/source-freshness\.test\.ts/iu,

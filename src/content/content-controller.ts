@@ -20,6 +20,7 @@ import { conversationChanged, createEphemeralSessionId } from "./page-lifecycle"
 const preferencesStorageKey = "ecoia.preferences.v1";
 const dayStorageKey = "ecoia.day.v1";
 const maximumObservedRootAncestors = 32;
+const rootDiscoveryDelayMs = 500;
 
 interface TurnState {
   eventId: string;
@@ -28,12 +29,16 @@ interface TurnState {
   acknowledgedSignature: string | null;
   displayOnly: boolean;
   phase: VisibleTurnSnapshot["phase"];
+  promptFingerprint: string;
+  responseFingerprint: string;
+  responseLength: number;
 }
 
 interface BaselinePending {
   reason: "initial" | "conversation-change";
   previousTurnElement: Element | null;
   observedEmpty: boolean;
+  markerWhenEmpty: string | null;
 }
 
 interface BaselineTurn {
@@ -179,6 +184,23 @@ function numericSignature(event: NumericInteractionEvent): string {
   ].join(":");
 }
 
+function ephemeralTextFingerprint(text: string, salt: string): string {
+  const hashes: [number, number, number, number] = [0x811c9dc5, 0x9e3779b9, 0x85ebca6b, 0xc2b2ae35];
+  const update = (fragment: string): void => {
+    for (let index = 0; index < fragment.length; index += 1) {
+      const code = fragment.charCodeAt(index);
+      hashes[0] = Math.imul(hashes[0] ^ code, 0x01000193);
+      hashes[1] = Math.imul(hashes[1] ^ code, 0x27d4eb2d);
+      hashes[2] = Math.imul(hashes[2] ^ code, 0x165667b1);
+      hashes[3] = Math.imul(hashes[3] ^ code, 0x9e3779b1);
+    }
+  };
+  update(salt);
+  update("\0");
+  update(text);
+  return hashes.map((hash) => (hash >>> 0).toString(16).padStart(8, "0")).join("");
+}
+
 function localCalendarDate(timestamp: number): string | null {
   if (!Number.isFinite(timestamp)) return null;
   const date = new Date(timestamp);
@@ -200,8 +222,10 @@ export class ContentController {
   private unsubscribeAdapter: (() => void) | null = null;
   private unsubscribeRuntime: (() => void) | null = null;
   private rootLifecycleObserver: MutationObserver | null = null;
+  private rootLifecycleTimer: number | null = null;
   private observedRoot: HTMLElement | null = null;
   private tabSessionId: string;
+  private readonly fingerprintSalt: string;
   private conversationMarker: string | null = null;
   private turnStates = new WeakMap<Element, TurnState>();
   private manualProfileId: string | null = null;
@@ -213,6 +237,7 @@ export class ContentController {
     reason: "initial",
     previousTurnElement: null,
     observedEmpty: false,
+    markerWhenEmpty: null,
   };
   private baselineTurn: BaselineTurn | null = null;
   private lastObservedTurnElement: Element | null = null;
@@ -225,6 +250,7 @@ export class ContentController {
     this.randomUUID = options.randomUUID ?? (() => crypto.randomUUID());
     this.now = options.now ?? Date.now;
     this.tabSessionId = createEphemeralSessionId(this.randomUUID);
+    this.fingerprintSalt = this.tabSessionId;
     this.viewModel = emptyViewModel(this.adapter.platform);
   }
 
@@ -323,6 +349,10 @@ export class ContentController {
   }
 
   private disconnectRootLifecycleObserver(): void {
+    if (this.rootLifecycleTimer !== null) {
+      this.document.defaultView?.clearTimeout(this.rootLifecycleTimer);
+      this.rootLifecycleTimer = null;
+    }
     this.rootLifecycleObserver?.disconnect();
     this.rootLifecycleObserver = null;
   }
@@ -334,9 +364,16 @@ export class ContentController {
     if (!Observer || !target) return;
     const observer = new Observer(() => {
       if (this.rootLifecycleObserver !== observer || !this.widget) return;
-      if (!this.adapter.findConversationRoot(this.document)) return;
-      this.disconnectRootLifecycleObserver();
-      void this.refresh();
+      if (this.rootLifecycleTimer !== null) return;
+      const window = this.document.defaultView;
+      if (!window) return;
+      this.rootLifecycleTimer = window.setTimeout(() => {
+        this.rootLifecycleTimer = null;
+        if (this.rootLifecycleObserver !== observer || !this.widget) return;
+        if (!this.adapter.findConversationRoot(this.document)) return;
+        this.disconnectRootLifecycleObserver();
+        void this.refresh();
+      }, rootDiscoveryDelayMs);
     });
     this.rootLifecycleObserver = observer;
     observer.observe(target, { childList: true, subtree: true });
@@ -345,22 +382,39 @@ export class ContentController {
   private watchRootPresence(root: HTMLElement): void {
     this.disconnectRootLifecycleObserver();
     const Observer = this.document.defaultView?.MutationObserver;
-    if (!Observer || !root.parentNode) return;
+    const observedAncestors = this.rootAncestors(root);
+    if (!Observer || observedAncestors.length === 0) return;
     const observer = new Observer(() => {
       if (this.rootLifecycleObserver !== observer || !this.widget) return;
-      if (root.isConnected && this.adapter.findConversationRoot(this.document) === root) return;
+      if (root.isConnected && this.adapter.findConversationRoot(this.document) === root) {
+        const currentAncestors = this.rootAncestors(root);
+        if (
+          currentAncestors.length === observedAncestors.length &&
+          currentAncestors.every((ancestor, index) => ancestor === observedAncestors[index])
+        ) {
+          return;
+        }
+        this.watchRootPresence(root);
+        return;
+      }
       this.disconnectRootLifecycleObserver();
       void this.refresh();
     });
     this.rootLifecycleObserver = observer;
-    let ancestor: Node | null = root.parentNode;
-    let observedAncestors = 0;
-    while (ancestor && observedAncestors < maximumObservedRootAncestors) {
+    for (const ancestor of observedAncestors) {
       observer.observe(ancestor, { childList: true });
-      observedAncestors += 1;
+    }
+  }
+
+  private rootAncestors(root: HTMLElement): Node[] {
+    const ancestors: Node[] = [];
+    let ancestor: Node | null = root.parentNode;
+    while (ancestor && ancestors.length < maximumObservedRootAncestors) {
+      ancestors.push(ancestor);
       if (ancestor === this.document.documentElement) break;
       ancestor = ancestor.parentNode;
     }
+    return ancestors;
   }
 
   private async resetConversation(
@@ -376,6 +430,7 @@ export class ContentController {
       reason: "conversation-change",
       previousTurnElement,
       observedEmpty: false,
+      markerWhenEmpty: null,
     };
     this.baselineTurn = null;
     this.conversationMarker = nextMarker;
@@ -436,7 +491,10 @@ export class ContentController {
     });
     const snapshot = this.adapter.readLatestTurn(root);
     if (!snapshot) {
-      if (this.baselinePending) this.baselinePending.observedEmpty = true;
+      if (this.baselinePending && !this.baselinePending.observedEmpty) {
+        this.baselinePending.observedEmpty = true;
+        this.baselinePending.markerWhenEmpty = this.conversationMarker;
+      }
       this.viewModel = {
         ...this.viewModel,
         state: "active",
@@ -467,7 +525,11 @@ export class ContentController {
       ) {
         return true;
       }
-      if (pending.observedEmpty && snapshot.phase === "streaming") {
+      if (
+        pending.observedEmpty &&
+        snapshot.phase === "streaming" &&
+        (pending.reason === "conversation-change" || pending.markerWhenEmpty === null)
+      ) {
         this.baselinePending = null;
         this.baselineTurn = null;
         return false;
@@ -567,10 +629,14 @@ export class ContentController {
       const family = tokenizerFamily(this.adapter.platform);
       const prompt = estimateVisibleTokens(snapshot.promptText, family);
       const output = estimateVisibleTokens(snapshot.responseText, family);
+      const promptFingerprint = ephemeralTextFingerprint(snapshot.promptText, this.fingerprintSalt);
+      const responseFingerprint = ephemeralTextFingerprint(
+        snapshot.responseText,
+        this.fingerprintSalt,
+      );
+      const responseLength = snapshot.responseText.length;
       const context = this.readContextEstimate(root, snapshot.turnElement, family);
       const input = createInputEnvelope(prompt, context);
-      snapshot.promptText = "";
-      snapshot.responseText = "";
       const resolution = resolveModelProfile({
         platform: this.adapter.platform,
         detected,
@@ -595,12 +661,19 @@ export class ContentController {
       const previousState =
         directState ??
         (replacementState &&
+        replacementState.promptFingerprint === promptFingerprint &&
         (replacementState.phase === "streaming" ||
-          snapshot.phase !== "streaming" ||
-          replacementState.pendingSignature === signature ||
-          replacementState.acknowledgedSignature === signature)
+          (snapshot.phase !== "streaming" &&
+            (replacementState.responseFingerprint === responseFingerprint ||
+              (responseLength >= replacementState.responseLength &&
+                ephemeralTextFingerprint(
+                  snapshot.responseText.slice(0, replacementState.responseLength),
+                  this.fingerprintSalt,
+                ) === replacementState.responseFingerprint))))
           ? replacementState
           : undefined);
+      snapshot.promptText = "";
+      snapshot.responseText = "";
       const eventIdentity = previousState?.eventId ?? createEphemeralSessionId(this.randomUUID);
       const sequence =
         previousState?.pendingSignature === signature
@@ -650,6 +723,9 @@ export class ContentController {
           acknowledgedSignature: previousState?.acknowledgedSignature ?? null,
           displayOnly: true,
           phase: snapshot.phase,
+          promptFingerprint,
+          responseFingerprint,
+          responseLength,
         });
         return;
       }
@@ -658,6 +734,9 @@ export class ContentController {
           this.turnStates.set(snapshot.turnElement, {
             ...previousState,
             phase: snapshot.phase,
+            promptFingerprint,
+            responseFingerprint,
+            responseLength,
           });
         }
         return;
@@ -669,6 +748,9 @@ export class ContentController {
         acknowledgedSignature: previousState?.acknowledgedSignature ?? null,
         displayOnly: false,
         phase: snapshot.phase,
+        promptFingerprint,
+        responseFingerprint,
+        responseLength,
       });
       const response = parseAggregateResponse(await this.api.runtime.sendMessage(event));
       if (response) {
@@ -679,6 +761,9 @@ export class ContentController {
           acknowledgedSignature: signature,
           displayOnly: false,
           phase: snapshot.phase,
+          promptFingerprint,
+          responseFingerprint,
+          responseLength,
         });
         this.viewModel = { ...this.viewModel, session: response.session, day: response.day };
         widget.update(this.viewModel);

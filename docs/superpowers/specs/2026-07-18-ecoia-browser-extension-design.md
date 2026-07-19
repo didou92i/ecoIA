@@ -317,7 +317,8 @@ Budgets de la V1 :
 - aucune dépendance JavaScript d’exécution ;
 - au maximum deux rafraîchissements visuels par seconde pendant le streaming ;
 - lecture et calculs DOM limités au conteneur de conversation ; observateur structurel temporaire
-  limité à la découverte ou au remplacement de cette racine ;
+  limité à la découverte ou au remplacement de cette racine, avec au plus deux recherches par seconde
+  lorsqu’elle est absente ;
 - aucun parcours complet du document à chaque mutation ;
 - données locales bornées à la session et au jour courant ;
 - arrêt propre de tous les observateurs et écouteurs lors d’une navigation ou désactivation.

@@ -18,7 +18,8 @@ partiel et évite qu’une page très fragmentée impose un travail sans limite.
 La lecture textuelle et les calculs restent limités à la racine de conversation. Si cette racine
 n’est pas encore présente ou vient d’être remplacée, un observateur structurel temporaire surveille
 uniquement l’ajout de nœuds et la présence de ses ancêtres ; il ne lit aucun texte hors conversation
-et se resserre sur la nouvelle racine dès qu’elle est trouvée.
+et se resserre sur la nouvelle racine dès qu’elle est trouvée. Lorsque la racine manque, les rafales
+de mutations sont regroupées afin de limiter sa recherche à deux fois par seconde au maximum.
 
 Les totaux commencent à partir de l’activation d’ecoIA dans la page. Le dernier tour déjà visible au
 démarrage, au rechargement ou juste après un changement de conversation sert de baseline, même si sa
@@ -26,15 +27,19 @@ réponse est encore en cours. Ce tour reste affiché mais n’est jamais agrég�
 et sa terminaison restent exclues. Recharger au milieu d’une réponse exclut donc le reste de cette
 réponse plutôt que de risquer de compter deux fois sa valeur absolue. Seul un tour utilisateur
 réellement ajouté ensuite devient éligible ; en cas de remplacement ou virtualisation ambiguë du DOM,
-ecoIA conserve l’identité numérique du dernier tour et préfère sous-compter. Si une nouvelle
-conversation a d’abord été observée vide, une réponse ensuite vue en cours est agrégée comme nouveau
-tour ; une réponse qui apparaît déjà terminée reste exclue par prudence, car elle peut provenir d’un
-historique chargé tardivement.
+ecoIA compare des empreintes éphémères salées du prompt et de la réponse, conservées uniquement dans
+la mémoire de la page, afin de préserver l’identité du même tour sans conserver son texte. Si une
+nouvelle conversation a d’abord été observée vide, une réponse ensuite vue en cours est agrégée comme
+nouveau tour ; dans une conversation existante en cours d’hydratation, elle reste dans la baseline.
+Une réponse qui apparaît déjà terminée reste exclue par prudence, car elle peut provenir d’un historique
+chargé tardivement. Deux tours distincts, strictement identiques et entièrement apparus entre deux
+observations peuvent rester indiscernables et être fusionnés ; ce cas rare produit un sous-comptage.
 
 Aucun prompt, aucun texte de réponse, aucun titre de page, aucune URL complète et aucun identifiant de
 conversation n’est stocké ou transmis au processus d’arrière-plan. Les messages entre composants sont
 validés et contiennent uniquement des nombres, des identifiants éphémères aléatoires et des valeurs
-issues de listes fermées.
+issues de listes fermées. Les empreintes éphémères ne quittent jamais le script de contenu et
+disparaissent avec la page.
 
 ## Stockage local
 
