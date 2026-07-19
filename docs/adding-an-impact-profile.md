@@ -28,11 +28,13 @@ entre énergie, eau et carbone.
 3. Renseigner chaque indicateur séparément : estimateur, unité, coefficients, multiplicateurs,
    confiance et `sourceId`.
 4. Mettre à jour `METHODOLOGY.md` avec les calculs reproductibles.
-5. Ajouter des tests du registre, des unités, des limites et des résultats attendus. Ajouter ou
-   adapter les tests des options de modèle pour vérifier que le profil n’est proposé que sur les
-   plateformes compatibles.
-6. Ajouter un cas de fraîcheur si la règle de date change, puis exécuter
-   `npm run source-freshness` pour vérifier le registre local.
+5. Ajouter des tests du registre, des unités, des limites et des résultats attendus. Pour chaque
+   nouveau profil, ajouter ou mettre à jour un cas dans `tests/unit/model-selection.test.ts` pour
+   vérifier sa compatibilité et ses options de modèle sur les plateformes concernées.
+6. Pour chaque nouvelle source, ajouter ou mettre à jour un cas dans
+   `tests/unit/source-freshness.test.ts` qui couvre son test de date et de fraîcheur. Exécuter aussi
+   `npm run source-freshness` : ce gate complémentaire vérifie le registre local, mais ne remplace
+   pas le test ajouté.
 7. Exécuter `npm run verify` et comparer l’affichage aux valeurs documentées.
 
 Une mise à jour de valeur existante crée une nouvelle version méthodologique ; elle ne réécrit pas

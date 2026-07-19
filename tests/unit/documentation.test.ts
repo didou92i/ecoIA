@@ -84,6 +84,10 @@ describe("open-source documentation", () => {
     expect(privacy).toMatch(/uniquement[\s\S]*mémoire[\s\S]*jamais[\s\S]*storage/iu);
     expect(privacy).toMatch(/aucun texte[\s\S]*URL[\s\S]*identifiant/iu);
     expect(contributorGuide).toContain("npm run source-freshness");
+    expect(contributorGuide).toMatch(
+      /tests\/unit\/model-selection\.test\.ts[\s\S]*tests\/unit\/source-freshness\.test\.ts/iu,
+    );
+    expect(contributorGuide).toMatch(/chaque nouvelle source[\s\S]*test de date.*fraîcheur/iu);
   });
 
   it("keeps CI read-only and pins official actions by commit SHA", async () => {
