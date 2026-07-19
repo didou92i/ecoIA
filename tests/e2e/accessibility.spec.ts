@@ -24,10 +24,11 @@ async function openAccessiblePage(
   extensionContext: BrowserContext,
   fixtureOrigin: string,
   path: string,
+  colorScheme: "light" | "dark" = "light",
   viewport = { width: 1280, height: 720 },
 ): Promise<Page> {
   const page = await extensionContext.newPage();
-  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
   await page.setViewportSize(viewport);
   await page.goto(`${fixtureOrigin}${path}`);
   await expect(page.locator("eco-ia-widget [data-status]")).toHaveText("Réponse mesurée");
@@ -47,12 +48,9 @@ async function expectVisibleFocus(page: Page): Promise<void> {
   expect(focus?.width).toBeGreaterThanOrEqual(2);
 }
 
-test("parcourt au clavier l'alerte, les détails, le sélecteur et une source", async ({
-  extensionContext,
-  fixtureOrigin,
-}) => {
-  const page = await openAccessiblePage(extensionContext, fixtureOrigin, "/missing-model");
+async function expectCompleteKeyboardJourney(page: Page, theme: "light" | "dark"): Promise<void> {
   const widget = page.locator("eco-ia-widget");
+  await expect(widget).toHaveAttribute("data-theme", theme);
   await expect(
     widget.getByRole("region", { name: "Impact environnemental estimé de cette conversation IA" }),
   ).toBeVisible();
@@ -94,7 +92,17 @@ test("parcourt au clavier l'alerte, les détails, le sélecteur et une source", 
   expect(
     await diagnostics.evaluateAll((rows) => rows.map((row) => (row as HTMLElement).tabIndex)),
   ).toEqual([-1, -1, -1, -1, -1]);
-  await page.close();
+}
+
+test("parcourt au clavier l'alerte, les détails, le sélecteur et une source en clair et sombre", async ({
+  extensionContext,
+  fixtureOrigin,
+}) => {
+  for (const theme of ["light", "dark"] as const) {
+    const page = await openAccessiblePage(extensionContext, fixtureOrigin, "/missing-model", theme);
+    await expectCompleteKeyboardJourney(page, theme);
+    await page.close();
+  }
 });
 
 test("respecte le contraste des textes en thèmes clair et sombre", async ({
@@ -128,10 +136,13 @@ test("reste entièrement dans un viewport de 320 px sans débordement horizontal
   extensionContext,
   fixtureOrigin,
 }) => {
-  const page = await openAccessiblePage(extensionContext, fixtureOrigin, "/narrow-viewport", {
-    width: 320,
-    height: 720,
-  });
+  const page = await openAccessiblePage(
+    extensionContext,
+    fixtureOrigin,
+    "/narrow-viewport",
+    "light",
+    { width: 320, height: 720 },
+  );
   const widget = page.locator("eco-ia-widget");
   await widget.getByText("Méthode et détails", { exact: true }).click();
   const geometry = await page.evaluate(() => {

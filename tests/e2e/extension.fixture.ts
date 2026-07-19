@@ -15,6 +15,19 @@ interface WorkerFixtures {
 const projectRoot = path.resolve(import.meta.dirname, "../..");
 const extensionPath = path.join(projectRoot, "dist", "chromium-e2e");
 const fixturePath = path.join(projectRoot, "tests", "fixtures", "e2e", "host.html");
+const fixtureRoutes = new Set([
+  "/",
+  "/second",
+  "/observed-model",
+  "/missing-model",
+  "/manual-model",
+  "/model-lifecycle",
+  "/with-context",
+  "/no-context",
+  "/network-check",
+  "/contrast",
+  "/narrow-viewport",
+]);
 
 async function startFixtureServer(): Promise<{ origin: string; server: Server }> {
   const fixture = await readFile(fixturePath);
@@ -23,7 +36,7 @@ async function startFixtureServer(): Promise<{ origin: string; server: Server }>
       response.writeHead(204).end();
       return;
     }
-    if (request.url?.startsWith("/")) {
+    if (request.url && fixtureRoutes.has(request.url)) {
       response.writeHead(200, {
         "cache-control": "no-store",
         "content-length": fixture.length,
