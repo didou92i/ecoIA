@@ -96,6 +96,36 @@ function consumeDomWork(budget: DomWorkBudget): boolean {
   return true;
 }
 
+export function findPreviousNodeWithin(
+  root: Node,
+  current: Node,
+  maximumMoves: number,
+): { node: Node | null; moves: number; exhausted: boolean } {
+  let cursor = current;
+  let moves = 0;
+  const moveTo = (next: Node): boolean => {
+    if (moves >= maximumMoves) return false;
+    cursor = next;
+    moves += 1;
+    return true;
+  };
+
+  const previousSibling = cursor.previousSibling;
+  if (previousSibling) {
+    if (!moveTo(previousSibling)) return { node: null, moves, exhausted: true };
+    while (cursor.lastChild) {
+      const lastChild = cursor.lastChild;
+      if (!moveTo(lastChild)) return { node: null, moves, exhausted: true };
+    }
+    return { node: cursor, moves, exhausted: false };
+  }
+
+  const parent = cursor.parentNode;
+  if (!parent || parent === root) return { node: null, moves, exhausted: false };
+  if (!moveTo(parent)) return { node: null, moves, exhausted: true };
+  return { node: cursor, moves, exhausted: false };
+}
+
 function elementIsHidden(element: Element): boolean {
   return (
     element.hasAttribute("hidden") ||
@@ -137,11 +167,14 @@ function readRecentVisibleContext(
   if (!root.contains(turnElement)) return { text: "", coverage: "partial" };
 
   const budget: DomWorkBudget = { remaining: visibleContextDomNodeLimit };
-  const walker = root.ownerDocument.createTreeWalker(root, NodeFilter.SHOW_ALL);
-  walker.currentNode = turnElement;
-  while (consumeDomWork(budget)) {
-    const node = walker.previousNode();
+  let current: Node = turnElement;
+  while (budget.remaining > 0) {
+    const previous = findPreviousNodeWithin(root, current, budget.remaining);
+    budget.remaining -= previous.moves;
+    if (previous.exhausted) return { text: formatSelected(), coverage: "partial" };
+    const node = previous.node;
     if (!node) return { text: formatSelected(), coverage: "complete" };
+    current = node;
     if (!(node instanceof Text)) continue;
     const belongsToVisibleTurn = textBelongsToVisibleTurn(
       node,

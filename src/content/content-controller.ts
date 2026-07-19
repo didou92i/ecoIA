@@ -26,6 +26,7 @@ interface TurnState {
   pendingSignature: string | null;
   acknowledgedSignature: string | null;
   displayOnly: boolean;
+  phase: VisibleTurnSnapshot["phase"];
 }
 
 interface BaselinePending {
@@ -405,7 +406,6 @@ export class ContentController {
       widget.update(this.viewModel);
       return;
     }
-    this.rebindReplacedTurnState(root, snapshot);
     const baselineSnapshot = this.isBaselineSnapshot(root, snapshot);
     await this.processSnapshot(root, snapshot, detected, widget, baselineSnapshot);
     this.lastObservedTurnElement = snapshot.turnElement;
@@ -454,19 +454,19 @@ export class ContentController {
     return false;
   }
 
-  private rebindReplacedTurnState(root: HTMLElement, snapshot: VisibleTurnSnapshot): void {
+  private replacedTurnState(
+    root: HTMLElement,
+    snapshot: VisibleTurnSnapshot,
+  ): TurnState | undefined {
     const previousTurnElement = this.lastObservedTurnElement;
     if (
       !previousTurnElement ||
       previousTurnElement === snapshot.turnElement ||
       root.contains(previousTurnElement)
     ) {
-      return;
+      return undefined;
     }
-    const previousState = this.turnStates.get(previousTurnElement);
-    if (previousState) this.turnStates.set(snapshot.turnElement, previousState);
-    const previousContext = this.contextEstimates.get(previousTurnElement);
-    if (previousContext) this.contextEstimates.set(snapshot.turnElement, previousContext);
+    return this.turnStates.get(previousTurnElement);
   }
 
   private createModelControl(resolution: ModelResolution): WidgetViewModel["modelControl"] {
@@ -532,11 +532,11 @@ export class ContentController {
       const tokens = { input, output, source: "estimated" as const };
       const impact = estimateImpact(resolution.profileId, tokens);
       const disclosure = buildImpactDisclosure(impact, this.adapter.platform);
-      const previousState = this.turnStates.get(snapshot.turnElement);
-      const eventIdentity = previousState?.eventId ?? createEphemeralSessionId(this.randomUUID);
+      const directState = this.turnStates.get(snapshot.turnElement);
+      const replacementState = directState ? undefined : this.replacedTurnState(root, snapshot);
       const signature = numericSignature({
         version: 1,
-        eventId: eventIdentity,
+        eventId: directState?.eventId ?? replacementState?.eventId ?? this.tabSessionId,
         tabSessionId: this.tabSessionId,
         sequence: 0,
         platform: this.adapter.platform,
@@ -545,6 +545,15 @@ export class ContentController {
         tokens,
         generatedAt: this.now(),
       });
+      const previousState =
+        directState ??
+        (replacementState &&
+        (replacementState.phase === "streaming" ||
+          replacementState.pendingSignature === signature ||
+          replacementState.acknowledgedSignature === signature)
+          ? replacementState
+          : undefined);
+      const eventIdentity = previousState?.eventId ?? createEphemeralSessionId(this.randomUUID);
       const sequence =
         previousState?.pendingSignature === signature
           ? previousState.sequence
@@ -592,6 +601,7 @@ export class ContentController {
           pendingSignature: null,
           acknowledgedSignature: previousState?.acknowledgedSignature ?? null,
           displayOnly: true,
+          phase: snapshot.phase,
         });
         return;
       }
@@ -602,6 +612,7 @@ export class ContentController {
         pendingSignature: signature,
         acknowledgedSignature: previousState?.acknowledgedSignature ?? null,
         displayOnly: false,
+        phase: snapshot.phase,
       });
       const response = parseAggregateResponse(await this.api.runtime.sendMessage(event));
       if (response) {
@@ -611,6 +622,7 @@ export class ContentController {
           pendingSignature: null,
           acknowledgedSignature: signature,
           displayOnly: false,
+          phase: snapshot.phase,
         });
         this.viewModel = { ...this.viewModel, session: response.session, day: response.day };
         widget.update(this.viewModel);

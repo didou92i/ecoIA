@@ -413,18 +413,19 @@ function updateActiveSessions(
   timestamp: number,
 ): { activeSessions: ActiveSessionState; sessionIdsToRemove: string[] } {
   const previousEntries = isActiveSessionState(stored) ? stored.entries : [];
-  const eligibleEntries = previousEntries.filter(
-    (entry) =>
-      entry.tabSessionId !== tabSessionId &&
-      entry.lastSeen <= timestamp &&
-      timestamp - entry.lastSeen <= activeSessionLifetimeMs,
-  );
-  const entries = [...eligibleEntries, { tabSessionId, lastSeen: timestamp }]
+  const eligibleEntries = previousEntries
+    .filter((entry) => entry.tabSessionId !== tabSessionId)
+    .map((entry) => ({ ...entry, lastSeen: Math.min(entry.lastSeen, timestamp) }))
+    .filter((entry) => timestamp - entry.lastSeen <= activeSessionLifetimeMs)
     .sort(
       (left, right) =>
         right.lastSeen - left.lastSeen || left.tabSessionId.localeCompare(right.tabSessionId),
     )
-    .slice(0, maximumActiveSessions);
+    .slice(0, maximumActiveSessions - 1);
+  const entries = [{ tabSessionId, lastSeen: timestamp }, ...eligibleEntries].sort(
+    (left, right) =>
+      right.lastSeen - left.lastSeen || left.tabSessionId.localeCompare(right.tabSessionId),
+  );
   const retainedIds = new Set(entries.map((entry) => entry.tabSessionId));
   const sessionIdsToRemove = previousEntries
     .map((entry) => entry.tabSessionId)
@@ -510,14 +511,16 @@ export class AggregateStore {
       const eventState: StoredEventState = isStoredEventState(storedEvents)
         ? storedEvents
         : { version: 1, events: [] };
+      const normalizedEvents = eventState.events.map((entry) =>
+        entry.updatedAt > timestamp ? { ...entry, updatedAt: timestamp } : entry,
+      );
       const deduplication: DeduplicationState = isDeduplicationState(storedDeduplication)
         ? storedDeduplication
         : { version: 1, entries: [] };
-      const recentDeduplication = deduplication.entries.filter(
-        (entry) =>
-          entry.updatedAt <= timestamp && timestamp - entry.updatedAt <= deduplicationLifetimeMs,
-      );
-      const previous = eventState.events.find((entry) => entry.eventId === event.eventId) ?? null;
+      const recentDeduplication = deduplication.entries
+        .map((entry) => (entry.updatedAt > timestamp ? { ...entry, updatedAt: timestamp } : entry))
+        .filter((entry) => timestamp - entry.updatedAt <= deduplicationLifetimeMs);
+      const previous = normalizedEvents.find((entry) => entry.eventId === event.eventId) ?? null;
       const duplicate = recentDeduplication.find(
         (entry) => entry.eventId === event.eventId && entry.tabSessionId === event.tabSessionId,
       );
@@ -545,8 +548,8 @@ export class AggregateStore {
         contribution,
       };
       const nextEvents = [
-        ...eventState.events.filter((entry) => entry.eventId !== event.eventId),
         nextSnapshot,
+        ...normalizedEvents.filter((entry) => entry.eventId !== event.eventId),
       ]
         .sort((left, right) => right.updatedAt - left.updatedAt)
         .slice(0, maximumRecentEvents);
@@ -557,11 +560,11 @@ export class AggregateStore {
         updatedAt: timestamp,
       };
       const nextDeduplication = [
+        nextDeduplicationEntry,
         ...recentDeduplication.filter(
           (entry) =>
             !(entry.eventId === event.eventId && entry.tabSessionId === event.tabSessionId),
         ),
-        nextDeduplicationEntry,
       ]
         .sort((left, right) => right.updatedAt - left.updatedAt)
         .slice(0, maximumRecentEvents);
@@ -607,12 +610,10 @@ export class AggregateStore {
       const activeSessions: ActiveSessionState = {
         version: 1,
         entries: isActiveSessionState(storedActiveSessions)
-          ? storedActiveSessions.entries.filter(
-              (entry) =>
-                entry.tabSessionId !== tabSessionId &&
-                entry.lastSeen <= timestamp &&
-                timestamp - entry.lastSeen <= activeSessionLifetimeMs,
-            )
+          ? storedActiveSessions.entries
+              .filter((entry) => entry.tabSessionId !== tabSessionId)
+              .map((entry) => ({ ...entry, lastSeen: Math.min(entry.lastSeen, timestamp) }))
+              .filter((entry) => timestamp - entry.lastSeen <= activeSessionLifetimeMs)
           : [],
       };
       const retainedIds = new Set(activeSessions.entries.map((entry) => entry.tabSessionId));
@@ -629,12 +630,10 @@ export class AggregateStore {
         await this.local.set({
           [deduplicationStorageKey]: {
             version: 1,
-            entries: stored.entries.filter(
-              (entry) =>
-                entry.tabSessionId !== tabSessionId &&
-                entry.updatedAt <= timestamp &&
-                timestamp - entry.updatedAt <= deduplicationLifetimeMs,
-            ),
+            entries: stored.entries
+              .filter((entry) => entry.tabSessionId !== tabSessionId)
+              .map((entry) => ({ ...entry, updatedAt: Math.min(entry.updatedAt, timestamp) }))
+              .filter((entry) => timestamp - entry.updatedAt <= deduplicationLifetimeMs),
           },
         });
       }

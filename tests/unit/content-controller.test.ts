@@ -632,6 +632,64 @@ describe("content controller", () => {
     harness.cleanupWorker();
   });
 
+  it("starts a new interaction when virtualization replaces a terminal turn with a streaming turn", async () => {
+    const adapter = new FakeAdapter();
+    const harness = createIntegratedHarness(adapter);
+    await harness.controller.start();
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      responseText: "Première réponse terminée avant virtualisation.",
+      phase: "completed",
+    };
+    await harness.controller.refresh();
+
+    const nextTurn = document.createElement("article");
+    adapter.root.replaceChildren(nextTurn);
+    adapter.snapshot = {
+      turnElement: nextTurn,
+      promptText: "Deuxième prompt après virtualisation.",
+      responseText: "Deuxième réponse en cours.",
+      phase: "streaming",
+    };
+    await harness.controller.refresh();
+
+    const sent = numericMessages(harness.messages) as Array<{ eventId: string }>;
+    expect(new Set(sent.map(({ eventId }) => eventId)).size).toBe(2);
+    expect(harness.updates.at(-1)).toMatchObject({
+      session: { interactionCount: 2 },
+      day: { interactionCount: 2 },
+    });
+    harness.controller.stop();
+    harness.cleanupWorker();
+  });
+
+  it("does not recount an unchanged terminal turn when its DOM anchor is replaced", async () => {
+    const adapter = new FakeAdapter();
+    const harness = createIntegratedHarness(adapter);
+    await harness.controller.start();
+    const terminalSnapshot = {
+      ...requireSnapshot(adapter),
+      responseText: "Réponse terminale stable après rendu.",
+      phase: "completed" as const,
+    };
+    adapter.snapshot = terminalSnapshot;
+    await harness.controller.refresh();
+    const sentBeforeReplacement = numericMessages(harness.messages).length;
+
+    const replacementTurn = document.createElement("article");
+    adapter.root.replaceChildren(replacementTurn);
+    adapter.snapshot = { ...terminalSnapshot, turnElement: replacementTurn };
+    await harness.controller.refresh();
+
+    expect(numericMessages(harness.messages)).toHaveLength(sentBeforeReplacement);
+    expect(harness.updates.at(-1)).toMatchObject({
+      session: { interactionCount: 1 },
+      day: { interactionCount: 1 },
+    });
+    harness.controller.stop();
+    harness.cleanupWorker();
+  });
+
   it("retries an unacknowledged numeric signature with the same event identity and sequence", async () => {
     const harness = createHarness(new FakeAdapter(), [
       { ok: false, error: "PROCESSING_FAILED" },

@@ -537,7 +537,7 @@ describe("aggregate store", () => {
     expect(local.values["ecoia.dedupe.v1"]).toEqual({ version: 1, entries: [] });
   });
 
-  it("prunes deduplication entries that are in the future after a clock rollback", async () => {
+  it("rebases future deduplication entries after a clock rollback and still expires them", async () => {
     const local = new MemoryStorageArea();
     const session = new MemoryStorageArea();
     let timestamp = 1_721_318_400_000;
@@ -552,12 +552,54 @@ describe("aggregate store", () => {
     timestamp -= 60 * 60 * 1_000;
     await store.processEvent(event("event-after-rollback", "tab-after-rollback", 1, 10));
 
-    const deduplication = local.values["ecoia.dedupe.v1"] as {
-      entries: Array<{ eventId: string }>;
+    let deduplication = local.values["ecoia.dedupe.v1"] as {
+      entries: Array<{ eventId: string; updatedAt: number }>;
     };
+    expect(deduplication.entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventId: eventUuid("event-before-rollback"),
+          updatedAt: timestamp,
+        }),
+        expect.objectContaining({
+          eventId: eventUuid("event-after-rollback"),
+          updatedAt: timestamp,
+        }),
+      ]),
+    );
+
+    timestamp += 31 * 60 * 1_000;
+    await store.processEvent(event("event-after-expiry", "tab-after-expiry", 1, 10));
+    deduplication = local.values["ecoia.dedupe.v1"] as typeof deduplication;
     expect(deduplication.entries.map(({ eventId }) => eventId)).toEqual([
-      eventUuid("event-after-rollback"),
+      eventUuid("event-after-expiry"),
     ]);
+  });
+
+  it("preserves an active interaction across a clock rollback and another tab event", async () => {
+    const local = new MemoryStorageArea();
+    const session = new MemoryStorageArea();
+    let timestamp = 1_721_318_400_000;
+    const store = new AggregateStore({
+      local,
+      session,
+      now: () => timestamp,
+      localDate: () => "2026-07-18",
+    });
+    await store.processEvent(event("event-tab-a", "tab-a", 1, 10));
+
+    timestamp -= 60 * 60 * 1_000;
+    await store.processEvent(event("event-tab-b", "tab-b", 1, 20));
+    await store.processEvent(event("event-tab-a", "tab-a", 2, 30, "chatgpt", "completed"));
+
+    await expect(store.getDayAggregate()).resolves.toMatchObject({
+      interactionCount: 2,
+      tokens: { output: { central: 50 } },
+    });
+    await expect(store.getSessionAggregate(sessionUuid("tab-a"))).resolves.toMatchObject({
+      interactionCount: 1,
+      tokens: { output: { central: 30 } },
+    });
   });
 
   it("uses bounded in-memory session storage when storage.session is unavailable", async () => {
