@@ -66,6 +66,29 @@ test("garde les détails dans une hauteur compacte avec défilement interne", as
   expect(overflow.scrollHeight).toBeGreaterThan(overflow.clientHeight);
 });
 
+test("garde la marque et les actions visibles pendant le défilement interne", async ({
+  extensionPage,
+}) => {
+  const widget = extensionPage.locator("eco-ia-widget");
+  await widget.getByText("Méthode et détails", { exact: true }).click();
+  const panel = widget.locator(".panel");
+  const header = widget.locator(".header");
+  const brandMark = widget.locator("[data-brand-mark]").first();
+
+  await panel.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+
+  const panelBounds = await panel.boundingBox();
+  const headerBounds = await header.boundingBox();
+  const brandBounds = await brandMark.boundingBox();
+  expect(panelBounds).not.toBeNull();
+  expect(headerBounds).not.toBeNull();
+  expect(brandBounds).not.toBeNull();
+  expect(headerBounds?.y ?? 0).toBeGreaterThanOrEqual((panelBounds?.y ?? 0) - 1);
+  expect(brandBounds?.y ?? 0).toBeGreaterThanOrEqual((panelBounds?.y ?? 0) + 4);
+});
+
 test("replie, restaure et mémorise le thème sombre", async ({ extensionPage }) => {
   const widget = extensionPage.locator("eco-ia-widget");
   await widget.locator("[data-theme-toggle]").click();

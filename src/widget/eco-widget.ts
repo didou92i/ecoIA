@@ -95,6 +95,7 @@ function renderEstimate(
 ): void {
   valueElement.textContent = estimate.value;
   rangeElement.textContent = estimate.range;
+  rangeElement.hidden = false;
 }
 
 function replaceTextList(list: HTMLUListElement, values: string[], dataAttribute?: string): void {
@@ -265,17 +266,22 @@ class EcoIaWidgetRuntime {
     } else {
       for (const element of [
         this.elements.water,
-        this.elements.waterRange,
         this.elements.car,
-        this.elements.carRange,
         this.elements.television,
-        this.elements.televisionRange,
         this.elements.energy,
-        this.elements.energyRange,
         this.elements.carbon,
-        this.elements.carbonRange,
       ]) {
         element.textContent = "En attente";
+      }
+      for (const element of [
+        this.elements.waterRange,
+        this.elements.carRange,
+        this.elements.televisionRange,
+        this.elements.energyRange,
+        this.elements.carbonRange,
+      ]) {
+        element.textContent = "";
+        element.hidden = true;
       }
     }
 

@@ -180,7 +180,9 @@ le widget insensible aux réglages d'accessibilité du navigateur.
 ### Navigation
 
 La marque TerritorIA et le nom ecoIA forment la poignée de déplacement. Le relâchement conserve la
-position exacte, tandis que les flèches du clavier permettent un ajustement accessible.
+position exacte, tandis que les flèches du clavier permettent un ajustement accessible. Cet en-tête
+reste visible pendant le défilement interne afin que la marque, le thème et le repli ne soient jamais
+rognés.
 
 ### Impact Trail
 

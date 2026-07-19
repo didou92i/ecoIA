@@ -336,6 +336,25 @@ describe("ecoIA widget", () => {
     );
   });
 
+  it("masque les plages redondantes tant que l’impact est en attente", () => {
+    const widget = createWidget();
+    widget.update({
+      ...viewModel,
+      state: "active",
+      current: {
+        ...viewModel.current,
+        impact: null,
+      },
+    });
+
+    expect(widget.shadowRoot?.querySelector("[data-water]")?.textContent).toBe("En attente");
+    expect(widget.shadowRoot?.querySelector<HTMLElement>("[data-water-range]")?.hidden).toBe(true);
+    expect(widget.shadowRoot?.querySelector<HTMLElement>("[data-car-range]")?.hidden).toBe(true);
+    expect(widget.shadowRoot?.querySelector<HTMLElement>("[data-television-range]")?.hidden).toBe(
+      true,
+    );
+  });
+
   it("confirms a newly completed measurement once, then becomes still", () => {
     vi.useFakeTimers();
     const widget = createWidget();

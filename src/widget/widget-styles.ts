@@ -7,6 +7,7 @@ export const widgetStyles = `
   --surface-raised: oklch(99% 0.008 170);
   --surface-muted: oklch(93% 0.02 170);
   --panel-surface: oklch(97% 0.014 170 / 0.72);
+  --header-surface: oklch(97% 0.014 170 / 0.94);
   --data-surface: oklch(99% 0.008 170 / 0.88);
   --impact-surface: oklch(92% 0.045 170 / 0.82);
   --text: oklch(25% 0.024 175);
@@ -40,6 +41,7 @@ export const widgetStyles = `
   --surface-raised: oklch(23% 0.022 175);
   --surface-muted: oklch(27% 0.024 175);
   --panel-surface: oklch(19% 0.018 175 / 0.90);
+  --header-surface: oklch(19% 0.018 175 / 0.96);
   --data-surface: oklch(23% 0.022 175 / 0.96);
   --impact-surface: oklch(28% 0.05 175 / 0.94);
   --text: oklch(94% 0.014 170);
@@ -72,6 +74,7 @@ button:focus-visible, summary:focus-visible, select:focus-visible, a:focus-visib
   display: block;
   flex: 0 0 auto;
   object-fit: contain;
+  padding: 2px;
 }
 
 .panel {
@@ -102,12 +105,18 @@ button:focus-visible, summary:focus-visible, select:focus-visible, a:focus-visib
 }
 
 .header {
+  position: sticky;
+  z-index: 4;
+  top: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
-  padding: 7px 7px 6px 8px;
+  padding: 5px 6px 5px 7px;
   border-bottom: 1px solid var(--border-soft);
+  background: var(--header-surface);
+  -webkit-backdrop-filter: blur(12px) saturate(1.1);
+  backdrop-filter: blur(12px) saturate(1.1);
 }
 .drag-handle {
   min-width: 0;
@@ -123,7 +132,7 @@ button:focus-visible, summary:focus-visible, select:focus-visible, a:focus-visib
 }
 :host([data-dragging]) .drag-handle { cursor: grabbing; }
 .brand { font-size: 12px; font-weight: 760; letter-spacing: -.01em; }
-.header-actions { display: flex; gap: 2px; }
+.header-actions { display: flex; align-items: center; gap: 2px; }
 .icon-button {
   width: 28px;
   height: 28px;
@@ -133,9 +142,10 @@ button:focus-visible, summary:focus-visible, select:focus-visible, a:focus-visib
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
 }
-.icon-button:hover { border-color: var(--border); background: var(--surface-muted); }
+.icon-button:hover { border-color: var(--border); background: var(--surface-muted); color: var(--text); }
 .icon-button:active { transform: scale(.94); }
 .body { padding: 7px 8px 8px; }
 .status-row { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
@@ -214,6 +224,7 @@ button:focus-visible, summary:focus-visible, select:focus-visible, a:focus-visib
   font-variant-numeric: tabular-nums;
   line-height: 1.3;
 }
+.estimate-range[hidden] { display: none; }
 
 .impact-list {
   position: relative;
