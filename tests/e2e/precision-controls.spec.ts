@@ -114,6 +114,37 @@ test("réinitialise le choix manuel après navigation SPA et après rechargement
   await page.close();
 });
 
+test("réinitialise la session quand une conversation SPA revient à la route racine", async ({
+  extensionContext,
+  fixtureOrigin,
+}) => {
+  const page = await openFixturePage(
+    extensionContext,
+    fixtureOrigin,
+    "/c/synthetic-conversation-a",
+  );
+  const widget = page.locator("eco-ia-widget");
+  await widget.getByText("Méthode et détails", { exact: true }).click();
+  const modelSelect = widget.getByRole("combobox", { name: "Modèle appliqué" });
+  await modelSelect.selectOption("openai-gpt-4-1-v1");
+  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4.1");
+
+  await page.evaluate(() => {
+    const conversation = document.querySelector<HTMLElement>("[data-conversation-id]");
+    const answer = document.querySelector<HTMLElement>("[data-answer]");
+    if (!conversation || !answer) throw new Error("E2E_CONVERSATION_FIXTURE_MISSING");
+    history.pushState(null, "", "/");
+    conversation.removeAttribute("data-conversation-id");
+    answer.textContent += " Retour synthétique à la route racine.";
+  });
+
+  await expect(modelSelect).toHaveValue("");
+  await expect(widget.locator("[data-model]")).toHaveText("OpenAI GPT-4o");
+  await expect(widget.locator("[data-diagnostics]")).toContainText("Modèle · Automatique");
+  await expect(widget.locator("[data-session]")).toContainText("1 interaction");
+  await page.close();
+});
+
 test("borne le contexte visible sans modifier l'estimation centrale du prompt", async ({
   extensionContext,
   fixtureOrigin,

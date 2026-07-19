@@ -44,11 +44,11 @@ export function findStaleSources(sources, reviewedAt, maximumAgeDays = 366) {
 }
 
 async function runCli() {
-  const registryUrl = new URL("../data/impact-profiles.json", import.meta.url);
-  const registry = JSON.parse(await readFile(registryUrl, "utf8"));
+  const inventoryUrl = new URL("../data/source-inventory.json", import.meta.url);
+  const inventory = JSON.parse(await readFile(inventoryUrl, "utf8"));
   const reviewedAt = new Date();
   reviewedAt.setUTCHours(0, 0, 0, 0);
-  const staleSourceIds = findStaleSources(registry.sources, reviewedAt);
+  const staleSourceIds = findStaleSources(inventory.sources, reviewedAt);
 
   if (staleSourceIds.length > 0) {
     console.log(staleSourceIds.join("\n"));

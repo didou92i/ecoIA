@@ -105,6 +105,16 @@ function normalizeModelLabel(value: string): string {
     .trim();
 }
 
+function matchesStructuredAlias(profile: ImpactProfile, normalizedLabel: string): boolean {
+  return profile.modelAliases.aliases.some((alias) => {
+    const normalizedAlias = normalizeModelLabel(alias);
+    if (normalizedLabel === normalizedAlias) return true;
+    return profile.modelAliases.providerPrefixes.some(
+      (prefix) => normalizedLabel === `${normalizeModelLabel(prefix)} ${normalizedAlias}`,
+    );
+  });
+}
+
 function validateProxyGraph(profiles: ImpactProfile[]): void {
   const profilesById = new Map(profiles.map((profile) => [profile.id, profile]));
 
@@ -139,6 +149,7 @@ export function validateImpactRegistry(value: unknown): ImpactRegistry {
       !isNonEmptyString(source.url) ||
       !source.url.startsWith("https://") ||
       !isValidDate(source.publicationDate) ||
+      (source.revisionDate !== undefined && !isValidDate(source.revisionDate)) ||
       !isValidDate(source.accessedDate) ||
       source.primary !== true ||
       !isNonEmptyString(source.scope) ||
@@ -162,7 +173,11 @@ export function validateImpactRegistry(value: unknown): ImpactRegistry {
       !Array.isArray(profile.platforms) ||
       profile.platforms.length === 0 ||
       !profile.platforms.every((platform) => platformIds.includes(platform as PlatformId)) ||
-      !isStringList(profile.modelMatchers, true) ||
+      !isRecord(profile.modelAliases) ||
+      !isStringList(profile.modelAliases.aliases, true) ||
+      !isStringList(profile.modelAliases.providerPrefixes, true) ||
+      (profile.modelAliases.aliases.length === 0 &&
+        profile.modelAliases.providerPrefixes.length > 0) ||
       !isStringList(profile.limitations) ||
       !isRecord(profile.indicators)
     ) {
@@ -201,10 +216,10 @@ export function getImpactProfile(profileId: string): ImpactProfile | null {
 export function matchImpactProfileId(platform: PlatformId, modelLabel: string): string | null {
   const normalizedLabel = normalizeModelLabel(modelLabel.slice(0, 128));
   const platformProfiles = impactRegistry.profiles.filter(
-    (profile) => profile.platforms.includes(platform) && profile.modelMatchers.length > 0,
+    (profile) => profile.platforms.includes(platform) && profile.modelAliases.aliases.length > 0,
   );
   const directMatch = platformProfiles.find((profile) =>
-    profile.modelMatchers.some((matcher) => normalizedLabel.includes(normalizeModelLabel(matcher))),
+    matchesStructuredAlias(profile, normalizedLabel),
   );
   if (directMatch) return directMatch.id;
 
@@ -212,10 +227,8 @@ export function matchImpactProfileId(platform: PlatformId, modelLabel: string): 
     const underlyingModel = impactRegistry.profiles.find(
       (profile) =>
         profile.id !== "generic-assistant-v1" &&
-        profile.modelMatchers.length > 0 &&
-        profile.modelMatchers.some((matcher) =>
-          normalizedLabel.includes(normalizeModelLabel(matcher)),
-        ),
+        profile.modelAliases.aliases.length > 0 &&
+        matchesStructuredAlias(profile, normalizedLabel),
     );
     if (underlyingModel) return underlyingModel.id;
   }

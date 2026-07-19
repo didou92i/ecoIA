@@ -19,6 +19,15 @@ describe("model profile selection", () => {
     expect(options.every((option) => option.label.length > 0)).toBe(true);
   });
 
+  it("offers both exact-variant Claude 3.5 profiles manually on Claude", () => {
+    expect(getModelProfileOptions("claude")).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "anthropic-claude-3-5-sonnet-v1", isGeneric: false }),
+        expect.objectContaining({ id: "anthropic-claude-3-5-haiku-v1", isGeneric: false }),
+      ]),
+    );
+  });
+
   it("prefers a compatible manual profile", () => {
     expect(
       resolveModelProfile({
@@ -90,6 +99,26 @@ describe("model profile selection", () => {
     ).toMatchObject({
       profileId: "openai-generic-v1",
       source: "generic",
+    });
+  });
+
+  it.each([
+    ["chatgpt", "GPT-4o mini", "openai-generic-v1"],
+    ["chatgpt", "GPT-4.1 nano", "openai-generic-v1"],
+    ["claude", "Claude 3.7 Sonnet Extended Thinking", "anthropic-generic-v1"],
+    ["gemini", "Gemini 2.5 Pro", "google-generic-v1"],
+    ["perplexity", "GPT-4o mini", "perplexity-generic-v1"],
+  ] as const)("uses %s generic for unsupported observed label %s", (platform, label, profileId) => {
+    expect(
+      resolveModelProfile({
+        platform,
+        detected: { label, observed: true },
+        manualProfileId: null,
+      }),
+    ).toMatchObject({
+      profileId,
+      source: "generic",
+      modelObserved: true,
     });
   });
 });

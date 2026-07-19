@@ -19,6 +19,8 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm test
+npm run impact-coefficients
+npm run source-freshness
 npm run e2e
 npm run audit
 npm run secrets

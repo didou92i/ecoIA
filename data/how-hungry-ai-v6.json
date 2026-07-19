@@ -1,0 +1,86 @@
+{
+  "version": "arxiv-2505.09598v6-table1-table4",
+  "source": {
+    "id": "how-hungry-v6",
+    "title": "How Hungry is AI? Benchmarking Energy, Water, and Carbon Footprint of LLM Inference",
+    "url": "https://arxiv.org/abs/2505.09598v6",
+    "version": "v6",
+    "publicationDate": "2025-05-14",
+    "revisionDate": "2025-11-24",
+    "accessedDate": "2026-07-19"
+  },
+  "queryShapes": [
+    { "id": "short", "inputTokens": 100, "outputTokens": 300 },
+    { "id": "medium", "inputTokens": 1000, "outputTokens": 1000 },
+    { "id": "long", "inputTokens": 10000, "outputTokens": 1500 }
+  ],
+  "infrastructure": {
+    "openaiAzure": {
+      "pue": 1.12,
+      "onsiteWueLitresPerKwh": 0.3,
+      "offsiteWueLitresPerKwh": 4.35,
+      "carbonIntensityKgPerKwh": 0.35
+    },
+    "anthropicAws": {
+      "pue": 1.14,
+      "onsiteWueLitresPerKwh": 0.18,
+      "offsiteWueLitresPerKwh": 5.11,
+      "carbonIntensityKgPerKwh": 0.287
+    }
+  },
+  "models": [
+    {
+      "profileId": "openai-gpt-4o-v1",
+      "label": "GPT-4o",
+      "provider": "openaiAzure",
+      "energyWh": [
+        { "mean": 0.423, "standardDeviation": 0.085 },
+        { "mean": 1.215, "standardDeviation": 0.241 },
+        { "mean": 2.875, "standardDeviation": 0.421 }
+      ]
+    },
+    {
+      "profileId": "openai-gpt-4-1-v1",
+      "label": "GPT-4.1",
+      "provider": "openaiAzure",
+      "energyWh": [
+        { "mean": 0.871, "standardDeviation": 0.302 },
+        { "mean": 3.161, "standardDeviation": 0.515 },
+        { "mean": 4.833, "standardDeviation": 0.65 }
+      ]
+    },
+    {
+      "profileId": "anthropic-claude-3-7-sonnet-v1",
+      "label": "Claude 3.7 Sonnet",
+      "provider": "anthropicAws",
+      "energyWh": [
+        { "mean": 0.95, "standardDeviation": 0.04 },
+        { "mean": 2.989, "standardDeviation": 0.201 },
+        { "mean": 5.671, "standardDeviation": 0.302 }
+      ]
+    },
+    {
+      "profileId": "anthropic-claude-3-5-sonnet-v1",
+      "label": "Claude 3.5 Sonnet",
+      "provider": "anthropicAws",
+      "energyWh": [
+        { "mean": 0.973, "standardDeviation": 0.066 },
+        { "mean": 3.638, "standardDeviation": 0.256 },
+        { "mean": 7.772, "standardDeviation": 0.345 }
+      ]
+    },
+    {
+      "profileId": "anthropic-claude-3-5-haiku-v1",
+      "label": "Claude 3.5 Haiku",
+      "provider": "anthropicAws",
+      "energyWh": [
+        { "mean": 0.975, "standardDeviation": 0.063 },
+        { "mean": 4.464, "standardDeviation": 0.283 },
+        { "mean": 8.01, "standardDeviation": 0.338 }
+      ]
+    }
+  ],
+  "normalizationNotes": [
+    "The v6 HTML rendering shows 0515 for the GPT-4.1 medium-shape standard deviation; the fixture records the normalized 0.515 value from the source table context."
+  ]
+}

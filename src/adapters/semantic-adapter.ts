@@ -83,11 +83,14 @@ function appearsBefore(left: Element, right: Element): boolean {
 }
 
 function markerFromDocument(document: Document, selectors: string[]): string | null {
-  const markerElement = queryFirst(document, selectors);
-  const explicitMarker =
-    markerElement?.getAttribute("data-conversation-id") ??
-    markerElement?.getAttribute("data-thread-id") ??
-    markerElement?.getAttribute("data-chat-id");
+  const explicitMarker = queryAll(document, selectors)
+    .map(
+      (element) =>
+        element.getAttribute("data-conversation-id") ??
+        element.getAttribute("data-thread-id") ??
+        element.getAttribute("data-chat-id"),
+    )
+    .find((marker): marker is string => Boolean(marker));
   if (explicitMarker) return explicitMarker.slice(0, 512);
   const path = document.location?.pathname;
   return path && path !== "/" ? path.slice(0, 512) : null;

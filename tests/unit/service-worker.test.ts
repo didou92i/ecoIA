@@ -27,7 +27,19 @@ class MemoryStorageArea implements ExtensionStorageArea {
   }
 }
 
-function createApi() {
+class FailOnceStorageArea extends MemoryStorageArea {
+  private failNextWrite = true;
+
+  override async set(values: Record<string, unknown>): Promise<void> {
+    if (this.failNextWrite) {
+      this.failNextWrite = false;
+      throw new Error("SIMULATED_SESSION_WRITE_FAILURE");
+    }
+    await super.set(values);
+  }
+}
+
+function createApi(session: ExtensionStorageArea = new MemoryStorageArea()) {
   let listener: ExtensionMessageListener | null = null;
   const api: BrowserApi = {
     runtime: {
@@ -37,7 +49,7 @@ function createApi() {
         return () => (listener = null);
       },
     },
-    storage: { local: new MemoryStorageArea(), session: new MemoryStorageArea() },
+    storage: { local: new MemoryStorageArea(), session },
   };
   return { api, getListener: () => listener };
 }
@@ -49,6 +61,24 @@ async function invoke(listener: ExtensionMessageListener, message: unknown): Pro
   });
 }
 
+function numericEvent() {
+  return {
+    version: 1,
+    eventId: "event-1",
+    tabSessionId: "tab-1",
+    sequence: 1,
+    platform: "chatgpt",
+    modelProfileId: "openai-gpt-4o-v1",
+    phase: "completed",
+    tokens: {
+      input: { low: 9, central: 10, high: 11 },
+      output: { low: 18, central: 20, high: 22 },
+      source: "estimated",
+    },
+    generatedAt: 1_721_318_400_000,
+  };
+}
+
 describe("service worker message boundary", () => {
   it("accepts a valid numeric interaction event", async () => {
     const { api, getListener } = createApi();
@@ -58,21 +88,7 @@ describe("service worker message boundary", () => {
     });
     const listener = getListener();
     if (!listener) throw new Error("MISSING_MESSAGE_LISTENER");
-    const response = await invoke(listener, {
-      version: 1,
-      eventId: "event-1",
-      tabSessionId: "tab-1",
-      sequence: 1,
-      platform: "chatgpt",
-      modelProfileId: "openai-gpt-4o-v1",
-      phase: "completed",
-      tokens: {
-        input: { low: 9, central: 10, high: 11 },
-        output: { low: 18, central: 20, high: 22 },
-        source: "estimated",
-      },
-      generatedAt: 1_721_318_400_000,
-    });
+    const response = await invoke(listener, numericEvent());
     expect(response).toMatchObject({
       ok: true,
       status: "accepted",
@@ -80,6 +96,27 @@ describe("service worker message boundary", () => {
       day: { interactionCount: 1, localDate: "2026-07-18" },
     });
     cleanup();
+  });
+
+  it("returns a stable failure then recovers the same event exactly once", async () => {
+    const { api, getListener } = createApi(new FailOnceStorageArea());
+    registerServiceWorker(api, {
+      now: () => 1_721_318_400_000,
+      localDate: () => "2026-07-18",
+    });
+    const listener = getListener();
+    if (!listener) throw new Error("MISSING_MESSAGE_LISTENER");
+
+    await expect(invoke(listener, numericEvent())).resolves.toEqual({
+      ok: false,
+      error: "PROCESSING_FAILED",
+    });
+    await expect(invoke(listener, numericEvent())).resolves.toMatchObject({
+      ok: true,
+      status: "ignored",
+      session: { interactionCount: 1 },
+      day: { interactionCount: 1 },
+    });
   });
 
   it("resets only a validated ephemeral session", async () => {

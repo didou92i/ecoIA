@@ -38,6 +38,7 @@ export interface ImpactSource {
   title: string;
   url: string;
   publicationDate: string;
+  revisionDate?: string;
   accessedDate: string;
   primary: true;
   scope: string;
@@ -49,7 +50,10 @@ export interface ImpactProfile {
   version: number;
   displayName: string;
   platforms: PlatformId[];
-  modelMatchers: string[];
+  modelAliases: {
+    aliases: string[];
+    providerPrefixes: string[];
+  };
   limitations: string[];
   indicators: Record<IndicatorKey, IndicatorEstimator>;
 }

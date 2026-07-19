@@ -22,7 +22,8 @@ const preferencesStorageKey = "ecoia.preferences.v1";
 interface TurnState {
   eventId: string;
   sequence: number;
-  numericSignature: string;
+  pendingSignature: string | null;
+  acknowledgedSignature: string | null;
 }
 
 export interface ContentWidget extends HTMLElement {
@@ -332,9 +333,11 @@ export class ContentController {
       selectedProfileId: this.manualProfileId,
       options: getModelProfileOptions(this.adapter.platform),
       warning:
-        !resolution.modelObserved && resolution.source === "generic"
-          ? "Modèle non communiqué — profil générique utilisé"
-          : null,
+        resolution.source !== "generic"
+          ? null
+          : resolution.modelObserved
+            ? "Aucun profil documenté pour ce modèle — profil générique utilisé"
+            : "Modèle non communiqué — profil générique utilisé",
       selectionError: this.selectionError,
     };
   }
@@ -385,10 +388,25 @@ export class ContentController {
       const impact = estimateImpact(resolution.profileId, tokens);
       const disclosure = buildImpactDisclosure(impact);
       const previousState = this.turnStates.get(snapshot.turnElement);
-      const sequence = (previousState?.sequence ?? 0) + 1;
+      const eventIdentity = previousState?.eventId ?? createEphemeralSessionId(this.randomUUID);
+      const signature = numericSignature({
+        version: 1,
+        eventId: eventIdentity,
+        tabSessionId: this.tabSessionId,
+        sequence: 0,
+        platform: this.adapter.platform,
+        modelProfileId: resolution.profileId,
+        phase: snapshot.phase,
+        tokens,
+        generatedAt: this.now(),
+      });
+      const sequence =
+        previousState?.pendingSignature === signature
+          ? previousState.sequence
+          : (previousState?.sequence ?? 0) + 1;
       const event: NumericInteractionEvent = {
         version: 1,
-        eventId: previousState?.eventId ?? createEphemeralSessionId(this.randomUUID),
+        eventId: eventIdentity,
         tabSessionId: this.tabSessionId,
         sequence,
         platform: this.adapter.platform,
@@ -397,7 +415,6 @@ export class ContentController {
         tokens,
         generatedAt: this.now(),
       };
-      const signature = numericSignature(event);
       this.viewModel = {
         ...this.viewModel,
         state: snapshot.phase === "streaming" ? "streaming" : "completed",
@@ -423,14 +440,21 @@ export class ContentController {
         current: { tokens, impact },
       };
       widget.update(this.viewModel);
-      if (previousState?.numericSignature === signature) return;
+      if (previousState?.acknowledgedSignature === signature) return;
       this.turnStates.set(snapshot.turnElement, {
         eventId: event.eventId,
         sequence,
-        numericSignature: signature,
+        pendingSignature: signature,
+        acknowledgedSignature: previousState?.acknowledgedSignature ?? null,
       });
       const response = parseAggregateResponse(await this.api.runtime.sendMessage(event));
       if (response) {
+        this.turnStates.set(snapshot.turnElement, {
+          eventId: event.eventId,
+          sequence,
+          pendingSignature: null,
+          acknowledgedSignature: signature,
+        });
         this.viewModel = { ...this.viewModel, session: response.session, day: response.day };
         widget.update(this.viewModel);
       }

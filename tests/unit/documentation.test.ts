@@ -90,6 +90,44 @@ describe("open-source documentation", () => {
     expect(contributorGuide).toMatch(/chaque nouvelle source[\s\S]*test de date.*fraîcheur/iu);
   });
 
+  it("documents reproducible v6 coefficient derivation and its residuals", async () => {
+    const methodology = await read("METHODOLOGY.md");
+    const contributorGuide = await read("docs/adding-an-impact-profile.md");
+
+    expect(methodology).toContain("Version : `2026-07-19.2`");
+    expect(methodology).toContain("data/how-hungry-ai-v6.json");
+    expect(methodology).toContain("npm run impact-coefficients");
+    expect(methodology).toMatch(/active-set NNLS/iu);
+    expect(methodology).toMatch(/15 moyennes/iu);
+    for (const residual of ["7,7519 %", "5,9034 %", "30,713 %"]) {
+      expect(methodology).toContain(residual);
+    }
+    expect(contributorGuide).toContain("data/source-inventory.json");
+    expect(contributorGuide).toContain("npm run impact-coefficients");
+  });
+
+  it("records evidence-gated model identity as an architecture decision", async () => {
+    const adr = await read("docs/adr/0002-evidence-gated-model-profiles.md");
+    const readme = await read("README.md");
+    const changelog = await read("CHANGELOG.md");
+
+    for (const requiredText of [
+      "Claude 3.5 Sonnet",
+      "Claude 3.5 Haiku",
+      "exact model variant",
+      "Gemini 2.5 Pro",
+      "Claude 3.7 Sonnet ET",
+      "generic",
+    ]) {
+      expect(adr).toContain(requiredText);
+    }
+    expect(readme).toMatch(/Claude 3\.5\s+Sonnet[\s\S]*Claude 3\.5 Haiku/iu);
+    expect(readme).toMatch(/modèle affiché mais non documenté[\s\S]*profil générique/iu);
+    expect(readme).toContain("ADR 0002");
+    expect(changelog).toContain("Claude 3.5 Sonnet");
+    expect(changelog).toContain("data/source-inventory.json");
+  });
+
   it("keeps CI read-only and pins official actions by commit SHA", async () => {
     const workflow = await read(".github/workflows/ci.yml");
     expect(workflow).toContain("contents: read");

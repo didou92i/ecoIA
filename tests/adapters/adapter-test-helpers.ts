@@ -132,6 +132,36 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       expect(context.text).not.toContain("Réponse actuelle à exclure.");
     });
 
+    it("preserves exact DOM reading order for prior context", () => {
+      const root = requireRoot(options.adapter);
+      const userTemplate = root.querySelector(options.userSelector);
+      const assistantTemplate = root.querySelector(options.assistantSelector);
+      if (!userTemplate || !assistantTemplate) throw new Error("MISSING_TURN_FIXTURE");
+      const makeTurn = (template: Element, text: string) => {
+        const turn = template.cloneNode(false) as Element;
+        turn.textContent = text;
+        return turn;
+      };
+      const firstUser = makeTurn(userTemplate, "Utilisateur ancien un.");
+      const firstAssistant = makeTurn(assistantTemplate, "Assistant ancien un.");
+      const secondUser = makeTurn(userTemplate, "Utilisateur ancien deux.");
+      const secondAssistant = makeTurn(assistantTemplate, "Assistant ancien deux.");
+      const currentUser = makeTurn(userTemplate, "Utilisateur courant exclu.");
+      const currentAssistant = makeTurn(assistantTemplate, "Assistant courant exclu.");
+      root.replaceChildren(
+        firstUser,
+        firstAssistant,
+        secondUser,
+        secondAssistant,
+        currentUser,
+        currentAssistant,
+      );
+
+      expect(options.adapter.readVisibleContext(root, currentUser).text).toBe(
+        "Utilisateur ancien un. Assistant ancien un. Utilisateur ancien deux. Assistant ancien deux.",
+      );
+    });
+
     it("detects an SPA conversation marker change without exposing it", () => {
       const before = options.adapter.getConversationMarker(document);
       const marker = document.querySelector(`[${options.markerAttribute}]`);
@@ -139,6 +169,18 @@ export function runAdapterContract(options: AdapterContractOptions): void {
       marker.setAttribute(options.markerAttribute, "changed-fixture-marker");
       const after = options.adapter.getConversationMarker(document);
       expect(before).not.toBe(after);
+    });
+
+    it("prefers an explicit nested conversation marker over pathname fallback", () => {
+      const root = requireRoot(options.adapter);
+      root.removeAttribute("data-conversation-id");
+      root.removeAttribute("data-thread-id");
+      root.removeAttribute("data-chat-id");
+      const nestedMarker = document.createElement("section");
+      nestedMarker.setAttribute(options.markerAttribute, "nested-explicit-marker");
+      root.prepend(nestedMarker);
+
+      expect(options.adapter.getConversationMarker(document)).toBe("nested-explicit-marker");
     });
 
     it("fails closed on unknown markup", () => {

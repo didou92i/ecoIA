@@ -31,7 +31,7 @@ class FakeAdapter implements PlatformAdapter {
   readonly platform = "chatgpt" as const;
   root = document.createElement("main");
   readonly turnElement = document.createElement("article");
-  marker = "conversation-a";
+  marker: string | null = "conversation-a";
   snapshot: VisibleTurnSnapshot | null = {
     turnElement: this.turnElement,
     promptText: "Texte privé du prompt",
@@ -75,7 +75,7 @@ function requireSnapshot(adapter: FakeAdapter): VisibleTurnSnapshot {
   return adapter.snapshot;
 }
 
-function createHarness(adapter = new FakeAdapter()) {
+function createHarness(adapter = new FakeAdapter(), numericResponses: unknown[] = []) {
   const messages: unknown[] = [];
   let runtimeListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
   const local = new MemoryStorageArea();
@@ -87,6 +87,7 @@ function createHarness(adapter = new FakeAdapter()) {
         if ((message as { kind?: string }).kind === "reset-session") {
           return { ok: true, status: "reset" };
         }
+        if (numericResponses.length > 0) return structuredClone(numericResponses.shift());
         return { ok: true, status: "accepted", session: null, day: null };
       },
       onMessage: (listener) => {
@@ -254,6 +255,18 @@ describe("content controller", () => {
       warning: "Modèle non communiqué — profil générique utilisé",
     });
     expect(unobserved.updates.at(-1)?.diagnostic.model).toBe("generic");
+
+    const unsupportedAdapter = new FakeAdapter();
+    unsupportedAdapter.model = "GPT-4o mini";
+    const unsupported = createHarness(unsupportedAdapter);
+    await unsupported.controller.start();
+    expect(numericMessages(unsupported.messages)[0]).toMatchObject({
+      modelProfileId: "openai-generic-v1",
+    });
+    expect(unsupported.updates.at(-1)?.modelControl).toMatchObject({
+      resolution: "generic",
+      warning: "Aucun profil documenté pour ce modèle — profil générique utilisé",
+    });
   });
 
   it("recalculates the same interaction when a compatible manual profile is selected", async () => {
@@ -397,6 +410,42 @@ describe("content controller", () => {
     expect(JSON.stringify(messages)).not.toContain("conversation-b");
   });
 
+  it("resets once when a conversation marker or path becomes null at the root route", async () => {
+    const adapter = new FakeAdapter();
+    adapter.contextSnapshot = { text: "Premier contexte", coverage: "complete" };
+    const { controller, messages, updates, widget } = createHarness(adapter);
+    await controller.start();
+    modelSelectionCallback(widget)("openai-gpt-4-1-v1");
+    await controller.refresh();
+    const firstNumeric = numericMessages(messages)[0] as {
+      eventId: string;
+      tabSessionId: string;
+    };
+
+    adapter.marker = null;
+    adapter.contextSnapshot = { text: "Contexte de la route racine", coverage: "complete" };
+    await controller.refresh();
+    await controller.refresh();
+
+    const resetMessages = messages.filter(
+      (message) => (message as { kind?: string }).kind === "reset-session",
+    );
+    const afterReset = numericMessages(messages).at(-1) as {
+      eventId: string;
+      tabSessionId: string;
+    };
+    expect(resetMessages).toEqual([
+      { version: 1, kind: "reset-session", tabSessionId: firstNumeric.tabSessionId },
+    ]);
+    expect(adapter.contextReadCount).toBe(2);
+    expect(afterReset.eventId).not.toBe(firstNumeric.eventId);
+    expect(afterReset.tabSessionId).not.toBe(firstNumeric.tabSessionId);
+    expect(updates.at(-1)?.modelControl).toMatchObject({
+      selectedProfileId: null,
+      resolution: "automatic",
+    });
+  });
+
   it("exposes only structured diagnostics for all response, model and context states", async () => {
     const adapter = new FakeAdapter();
     adapter.contextSnapshot = { text: "Contexte visible", coverage: "complete" };
@@ -461,6 +510,26 @@ describe("content controller", () => {
     expect(second.sequence).toBe(first.sequence + 1);
     expect(second.phase).toBe("completed");
     expect(updates.at(-1)?.diagnostic.response).toBe("complete");
+  });
+
+  it("retries an unacknowledged numeric signature with the same event identity and sequence", async () => {
+    const harness = createHarness(new FakeAdapter(), [
+      { ok: false, error: "PROCESSING_FAILED" },
+      { ok: true, status: "accepted", session: null, day: null },
+    ]);
+    await harness.controller.start();
+    await harness.controller.refresh();
+    await harness.controller.refresh();
+
+    const sent = numericMessages(harness.messages) as Array<{
+      eventId: string;
+      sequence: number;
+    }>;
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({
+      eventId: sent[0]?.eventId,
+      sequence: sent[0]?.sequence,
+    });
   });
 
   it("resets the ephemeral session on SPA conversation change", async () => {

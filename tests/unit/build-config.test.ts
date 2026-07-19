@@ -23,6 +23,7 @@ const requiredScripts = [
   "size",
   "e2e",
   "audit",
+  "impact-coefficients",
   "source-freshness",
   "verify",
 ] as const;
@@ -51,6 +52,14 @@ describe("project configuration", () => {
     const verifyScript = packageJson.scripts.verify;
     expect(verifyScript).toContain("npm run source-freshness");
     expect(verifyScript.indexOf("npm run source-freshness")).toBeLessThan(
+      verifyScript.indexOf("npm run build"),
+    );
+  });
+
+  it("checks derived impact coefficients before building during verification", () => {
+    const verifyScript = packageJson.scripts.verify;
+    expect(verifyScript).toContain("npm run impact-coefficients");
+    expect(verifyScript.indexOf("npm run impact-coefficients")).toBeLessThan(
       verifyScript.indexOf("npm run build"),
     );
   });

@@ -8,6 +8,7 @@ import type {
   DeduplicationState,
   EventContribution,
   NumericAggregate,
+  RecoveryJournal,
   StoredEventSnapshot,
   StoredEventState,
 } from "./storage-types";
@@ -15,6 +16,7 @@ import { WriteQueue } from "./write-queue";
 
 const dayStorageKey = "ecoia.day.v1";
 const deduplicationStorageKey = "ecoia.dedupe.v1";
+const recoveryJournalStorageKey = "ecoia.journal.v1";
 const maximumRecentEvents = 256;
 const deduplicationLifetimeMs = 30 * 60 * 1_000;
 const aggregateQueueKey = "ecoia-aggregate-write";
@@ -87,8 +89,15 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function hasExactKeys(value: Record<string, unknown>, keys: string[]): boolean {
+  const actual = Object.keys(value).sort();
+  const expected = [...keys].sort();
+  return actual.length === expected.length && actual.every((key, index) => key === expected[index]);
+}
+
 function isRange(value: unknown): value is EstimateRange {
   if (!isRecord(value)) return false;
+  if (!hasExactKeys(value, ["low", "central", "high"])) return false;
   const { low, central, high } = value;
   return (
     typeof low === "number" &&
@@ -105,6 +114,9 @@ function isRange(value: unknown): value is EstimateRange {
 
 function isPlatformCounts(value: unknown): value is Record<PlatformId, number> {
   if (!isRecord(value)) return false;
+  if (!hasExactKeys(value, ["chatgpt", "claude", "gemini", "mistral", "perplexity"])) {
+    return false;
+  }
   return ["chatgpt", "claude", "gemini", "mistral", "perplexity"].every(
     (platform) => Number.isSafeInteger(value[platform]) && (value[platform] as number) >= 0,
   );
@@ -113,34 +125,85 @@ function isPlatformCounts(value: unknown): value is Record<PlatformId, number> {
 export function isNumericAggregate(value: unknown): value is NumericAggregate {
   if (
     !isRecord(value) ||
+    (!hasExactKeys(value, ["version", "interactionCount", "platformCounts", "tokens", "impacts"]) &&
+      !hasExactKeys(value, [
+        "version",
+        "interactionCount",
+        "platformCounts",
+        "tokens",
+        "impacts",
+        "localDate",
+      ])) ||
     value.version !== 1 ||
     !Number.isSafeInteger(value.interactionCount) ||
     (value.interactionCount as number) < 0 ||
     !isPlatformCounts(value.platformCounts) ||
     !isRecord(value.tokens) ||
+    !hasExactKeys(value.tokens, ["input", "output"]) ||
     !isRange(value.tokens.input) ||
     !isRange(value.tokens.output) ||
-    !isRecord(value.impacts)
+    !isRecord(value.impacts) ||
+    !hasExactKeys(value.impacts, [
+      "energyWh",
+      "waterMl",
+      "carbonG",
+      "televisionSeconds",
+      "carMeters",
+    ])
   ) {
     return false;
   }
-  return ["energyWh", "waterMl", "carbonG", "televisionSeconds", "carMeters"].every((key) =>
-    isRange((value.impacts as Record<string, unknown>)[key]),
+  return (
+    ["energyWh", "waterMl", "carbonG", "televisionSeconds", "carMeters"].every((key) =>
+      isRange((value.impacts as Record<string, unknown>)[key]),
+    ) &&
+    (value.localDate === undefined || typeof value.localDate === "string")
+  );
+}
+
+function isSessionAggregate(value: unknown): value is NumericAggregate {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, ["version", "interactionCount", "platformCounts", "tokens", "impacts"]) &&
+    isNumericAggregate(value)
   );
 }
 
 function isDayAggregate(value: unknown): value is DayAggregate {
-  return isNumericAggregate(value) && isRecord(value) && typeof value.localDate === "string";
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, [
+      "version",
+      "interactionCount",
+      "platformCounts",
+      "tokens",
+      "impacts",
+      "localDate",
+    ])
+  ) {
+    return false;
+  }
+  const { localDate, ...aggregate } = value;
+  return typeof localDate === "string" && isNumericAggregate(aggregate);
 }
 
 function isEventContribution(value: unknown): value is EventContribution {
   if (
     !isRecord(value) ||
+    !hasExactKeys(value, ["platform", "tokens", "impacts"]) ||
     !["chatgpt", "claude", "gemini", "mistral", "perplexity"].includes(value.platform as string) ||
     !isRecord(value.tokens) ||
+    !hasExactKeys(value.tokens, ["input", "output"]) ||
     !isRange(value.tokens.input) ||
     !isRange(value.tokens.output) ||
-    !isRecord(value.impacts)
+    !isRecord(value.impacts) ||
+    !hasExactKeys(value.impacts, [
+      "energyWh",
+      "waterMl",
+      "carbonG",
+      "televisionSeconds",
+      "carMeters",
+    ])
   ) {
     return false;
   }
@@ -150,30 +213,64 @@ function isEventContribution(value: unknown): value is EventContribution {
 }
 
 function isStoredEventState(value: unknown): value is StoredEventState {
-  if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.events)) return false;
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["version", "events"]) ||
+    value.version !== 1 ||
+    !Array.isArray(value.events) ||
+    value.events.length > maximumRecentEvents
+  ) {
+    return false;
+  }
   return value.events.every(
     (entry) =>
       isRecord(entry) &&
+      hasExactKeys(entry, ["eventId", "sequence", "updatedAt", "localDate", "contribution"]) &&
       typeof entry.eventId === "string" &&
       identifierPattern.test(entry.eventId) &&
       Number.isSafeInteger(entry.sequence) &&
+      (entry.sequence as number) >= 1 &&
       Number.isSafeInteger(entry.updatedAt) &&
+      (entry.updatedAt as number) >= 0 &&
       typeof entry.localDate === "string" &&
       isEventContribution(entry.contribution),
   );
 }
 
 function isDeduplicationState(value: unknown): value is DeduplicationState {
-  if (!isRecord(value) || value.version !== 1 || !Array.isArray(value.entries)) return false;
+  if (
+    !isRecord(value) ||
+    !hasExactKeys(value, ["version", "entries"]) ||
+    value.version !== 1 ||
+    !Array.isArray(value.entries) ||
+    value.entries.length > maximumRecentEvents
+  ) {
+    return false;
+  }
   return value.entries.every(
     (entry) =>
       isRecord(entry) &&
+      hasExactKeys(entry, ["eventId", "tabSessionId", "sequence", "updatedAt"]) &&
       typeof entry.eventId === "string" &&
       identifierPattern.test(entry.eventId) &&
       typeof entry.tabSessionId === "string" &&
       identifierPattern.test(entry.tabSessionId) &&
       Number.isSafeInteger(entry.sequence) &&
-      Number.isSafeInteger(entry.updatedAt),
+      (entry.sequence as number) >= 1 &&
+      Number.isSafeInteger(entry.updatedAt) &&
+      (entry.updatedAt as number) >= 0,
+  );
+}
+
+function isRecoveryJournal(value: unknown): value is RecoveryJournal {
+  return (
+    isRecord(value) &&
+    hasExactKeys(value, ["version", "tabSessionId", "sessionAggregate", "eventState"]) &&
+    value.version === 1 &&
+    typeof value.tabSessionId === "string" &&
+    identifierPattern.test(value.tabSessionId) &&
+    isSessionAggregate(value.sessionAggregate) &&
+    isStoredEventState(value.eventState)
   );
 }
 
@@ -267,11 +364,26 @@ export class AggregateStore {
   async getSessionAggregate(tabSessionId: string): Promise<NumericAggregate | null> {
     if (!identifierPattern.test(tabSessionId)) throw new Error("INVALID_SESSION_ID");
     const stored = await readKey(this.session, sessionAggregateKey(tabSessionId));
-    return isNumericAggregate(stored) ? stored : null;
+    return isSessionAggregate(stored) ? stored : null;
+  }
+
+  private async recoverPendingWrite(): Promise<void> {
+    const storedJournal = await readKey(this.local, recoveryJournalStorageKey);
+    if (storedJournal === undefined) return;
+    if (!isRecoveryJournal(storedJournal)) {
+      await this.local.remove(recoveryJournalStorageKey);
+      return;
+    }
+    await this.session.set({
+      [sessionAggregateKey(storedJournal.tabSessionId)]: storedJournal.sessionAggregate,
+      [sessionEventsKey(storedJournal.tabSessionId)]: storedJournal.eventState,
+    });
+    await this.local.remove(recoveryJournalStorageKey);
   }
 
   processEvent(event: NumericInteractionEvent): Promise<ProcessEventResult> {
     return this.queue.enqueue(aggregateQueueKey, async () => {
+      await this.recoverPendingWrite();
       const currentDate = this.localDate();
       const timestamp = this.now();
       const eventsKey = sessionEventsKey(event.tabSessionId);
@@ -285,7 +397,7 @@ export class AggregateStore {
         isDayAggregate(storedDay) && storedDay.localDate === currentDate
           ? storedDay
           : emptyDay(currentDate);
-      const session = isNumericAggregate(storedSession) ? storedSession : emptyAggregate();
+      const session = isSessionAggregate(storedSession) ? storedSession : emptyAggregate();
       const eventState: StoredEventState = isStoredEventState(storedEvents)
         ? storedEvents
         : { version: 1, events: [] };
@@ -344,14 +456,22 @@ export class AggregateStore {
         .sort((left, right) => right.updatedAt - left.updatedAt)
         .slice(0, maximumRecentEvents);
 
+      const recoveryJournal: RecoveryJournal = {
+        version: 1,
+        tabSessionId: event.tabSessionId,
+        sessionAggregate: nextSession,
+        eventState: { version: 1, events: nextEvents },
+      };
       await this.local.set({
         [dayStorageKey]: nextDay,
         [deduplicationStorageKey]: { version: 1, entries: nextDeduplication },
+        [recoveryJournalStorageKey]: recoveryJournal,
       });
       await this.session.set({
         [sessionAggregateKey(event.tabSessionId)]: nextSession,
         [eventsKey]: { version: 1, events: nextEvents },
       });
+      await this.local.remove(recoveryJournalStorageKey);
       return { status: "accepted" };
     });
   }
@@ -360,6 +480,7 @@ export class AggregateStore {
     if (!identifierPattern.test(tabSessionId))
       return Promise.reject(new Error("INVALID_SESSION_ID"));
     return this.queue.enqueue(aggregateQueueKey, async () => {
+      await this.recoverPendingWrite();
       await this.session.remove([
         sessionAggregateKey(tabSessionId),
         sessionEventsKey(tabSessionId),

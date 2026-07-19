@@ -31,6 +31,8 @@ jobs:
         run: npm run typecheck
       - name: Unit and adapter tests
         run: npm test
+      - name: Quantitative source freshness
+        run: npm run source-freshness
       - name: Chromium extension journeys
         run: npm run e2e
       - name: Production dependency audit

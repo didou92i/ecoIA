@@ -63,6 +63,21 @@ describe("impact data-quality disclosure", () => {
     expect(disclosure.overallExplanation).toBe("D — proxy générique avec forte incertitude");
   });
 
+  it("orders grade C as worse than grade B", () => {
+    const impact = estimateImpact("openai-gpt-4o-v1", tokens);
+    const disclosure = buildImpactDisclosure({
+      ...impact,
+      energyWh: { ...impact.energyWh, confidence: "B" },
+      waterMl: { ...impact.waterMl, confidence: "C" },
+      carbonG: { ...impact.carbonG, confidence: "B" },
+    });
+
+    expect(disclosure.overallGrade).toBe("C");
+    expect(disclosure.overallExplanation).toBe(
+      "C — estimation modélisée à partir de données publiées",
+    );
+  });
+
   it("deduplicates source records in indicator order with their validated metadata", () => {
     const disclosure = buildImpactDisclosure(
       estimateImpact("mistral-large-2-disclosure-v1", tokens),

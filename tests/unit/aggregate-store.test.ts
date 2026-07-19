@@ -27,6 +27,18 @@ class MemoryStorageArea implements ExtensionStorageArea {
   }
 }
 
+class FailOnceStorageArea extends MemoryStorageArea {
+  private failNextWrite = true;
+
+  override async set(values: Record<string, unknown>): Promise<void> {
+    if (this.failNextWrite) {
+      this.failNextWrite = false;
+      throw new Error("SIMULATED_SESSION_WRITE_FAILURE");
+    }
+    await super.set(values);
+  }
+}
+
 function event(
   eventId: string,
   tabSessionId: string,
@@ -180,6 +192,49 @@ describe("aggregate store", () => {
     const serialized = JSON.stringify({ local: local.values, session: session.values });
     expect(serialized).not.toMatch(/prompt|response|conversationId|https?:\/\//i);
     expect(serialized).not.toContain("estimated");
+  });
+
+  it("recovers a local-success session-failure write and counts the retry exactly once", async () => {
+    const local = new MemoryStorageArea();
+    const session = new FailOnceStorageArea();
+    const store = new AggregateStore({
+      local,
+      session,
+      now: () => 1_721_318_400_000,
+      localDate: () => "2026-07-18",
+    });
+    const numericEvent = event("event-retry", "tab-retry", 1, 100, "chatgpt", "completed");
+
+    await expect(store.processEvent(numericEvent)).rejects.toThrow(
+      "SIMULATED_SESSION_WRITE_FAILURE",
+    );
+    expect(local.values).toHaveProperty("ecoia.journal.v1");
+    expect(JSON.stringify(local.values)).not.toMatch(/prompt|response|conversation|https?:\/\//iu);
+
+    await expect(store.processEvent(numericEvent)).resolves.toEqual({
+      status: "ignored",
+      reason: "DUPLICATE_OR_OUT_OF_ORDER",
+    });
+    expect(await store.getSessionAggregate("tab-retry")).toMatchObject({ interactionCount: 1 });
+    expect(await store.getDayAggregate()).toMatchObject({ interactionCount: 1 });
+    expect(local.values).not.toHaveProperty("ecoia.journal.v1");
+  });
+
+  it("strictly discards a text-bearing or malformed recovery journal", async () => {
+    const { local, session, store } = createStore();
+    local.values["ecoia.journal.v1"] = {
+      version: 1,
+      tabSessionId: "tab-1",
+      sessionAggregate: { prompt: "private prompt" },
+      eventState: { url: "https://private.example/conversation" },
+    };
+
+    await store.processEvent(event("event-1", "tab-1", 1, 100));
+
+    expect(local.values).not.toHaveProperty("ecoia.journal.v1");
+    expect(JSON.stringify({ local: local.values, session: session.values })).not.toMatch(
+      /private prompt|private\.example|https?:\/\//iu,
+    );
   });
 
   it("bounds deduplication and event metadata to 256 entries", async () => {

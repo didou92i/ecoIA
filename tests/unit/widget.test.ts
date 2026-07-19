@@ -8,6 +8,7 @@ import { createRange } from "../../src/shared/range";
 import {
   createEcoWidget,
   registerEcoWidget,
+  type EcoIaWidgetHost,
   type WidgetViewModel,
 } from "../../src/widget/eco-widget";
 import { clampWidgetTop } from "../../src/widget/widget-controller";
@@ -120,10 +121,7 @@ const viewModel: WidgetViewModel = {
 
 function createWidget() {
   registerEcoWidget();
-  const widget = document.createElement("eco-ia-widget") as HTMLElement & {
-    configure(options: unknown): void;
-    update(viewModel: WidgetViewModel): void;
-  };
+  const widget = document.createElement("eco-ia-widget") as EcoIaWidgetHost;
   document.body.append(widget);
   return widget;
 }
@@ -149,6 +147,49 @@ describe("ecoIA widget", () => {
     expect(widget.shadowRoot?.querySelector("[role='region']")).not.toBeNull();
     expect(() => widget.update(viewModel)).not.toThrow();
     widget.disconnectEcoIaWidget();
+  });
+
+  it("reclamps after details toggle on RAF and cancels a pending frame on disconnect", () => {
+    const callbacks = new Map<number, FrameRequestCallback>();
+    let nextFrame = 0;
+    const requestFrame = vi.fn((callback: FrameRequestCallback) => {
+      const frameId = ++nextFrame;
+      callbacks.set(frameId, callback);
+      return frameId;
+    });
+    const cancelFrame = vi.fn((frameId: number) => callbacks.delete(frameId));
+    vi.stubGlobal("requestAnimationFrame", requestFrame);
+    vi.stubGlobal("cancelAnimationFrame", cancelFrame);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(720);
+    const widget = createWidget();
+    widget.configure({
+      preferences: { theme: "system", side: "right", collapsed: false, top: 96 },
+    });
+    const panel = widget.shadowRoot?.querySelector<HTMLElement>("section.panel");
+    const details = widget.shadowRoot?.querySelector<HTMLDetailsElement>("details");
+    if (!panel || !details) throw new Error("MISSING_WIDGET_FIXTURE");
+    vi.spyOn(panel, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      top: 0,
+      right: 232,
+      bottom: 696,
+      left: 0,
+      width: 232,
+      height: 696,
+      toJSON: () => ({}),
+    });
+
+    details.dispatchEvent(new Event("toggle"));
+    const firstFrame = requestFrame.mock.results[0]?.value;
+    expect(firstFrame).toBe(1);
+    callbacks.get(firstFrame)?.(0);
+    expect(widget.style.top).toBe("12px");
+
+    details.dispatchEvent(new Event("toggle"));
+    const pendingFrame = requestFrame.mock.results[1]?.value;
+    widget.disconnectEcoIaWidget();
+    expect(cancelFrame).toHaveBeenCalledWith(pendingFrame);
   });
 
   it("isolates a compact native interface in Shadow DOM", () => {
@@ -254,6 +295,7 @@ describe("ecoIA widget", () => {
     select.value = "injected-profile";
     select.dispatchEvent(new Event("change"));
     expect(onModelSelectionChange).not.toHaveBeenCalled();
+    expect(select.value).toBe("openai-gpt-4o-v1");
 
     select.value = "openai-gpt-4-1-v1";
     select.dispatchEvent(new Event("change"));

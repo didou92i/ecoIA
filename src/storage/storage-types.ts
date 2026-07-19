@@ -56,3 +56,10 @@ export interface DeduplicationState {
   version: 1;
   entries: DeduplicationEntry[];
 }
+
+export interface RecoveryJournal {
+  version: 1;
+  tabSessionId: string;
+  sessionAggregate: NumericAggregate;
+  eventState: StoredEventState;
+}

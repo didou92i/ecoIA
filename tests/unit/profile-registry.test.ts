@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import rawRegistry from "../../data/impact-profiles.json";
 import {
   impactRegistry,
+  matchImpactProfileId,
   resolveImpactProfileId,
   validateImpactRegistry,
 } from "../../src/impact/profile-registry";
@@ -10,12 +11,17 @@ import {
 interface MutableSource {
   url: string;
   publicationDate: string;
+  revisionDate?: string;
   scope: string;
   limitations: string[];
 }
 
 interface MutableProfile {
   id: string;
+  modelAliases?: {
+    aliases: string[];
+    providerPrefixes: string[];
+  };
   indicators: {
     energyWh: Record<string, unknown>;
   };
@@ -35,21 +41,68 @@ function requireFirst<T>(items: T[]): T {
 
 describe("impact profile registry", () => {
   it("loads the versioned published registry", () => {
-    expect(impactRegistry.methodologyVersion).toBe("2026-07-18.1");
+    expect(impactRegistry.methodologyVersion).toBe("2026-07-19.2");
     expect(impactRegistry.profiles.length).toBeGreaterThanOrEqual(8);
     expect(impactRegistry.sources.length).toBeGreaterThanOrEqual(3);
   });
 
   it.each([
     ["chatgpt", "GPT-4o", "openai-gpt-4o-v1"],
+    ["chatgpt", "OpenAI · GPT-4o", "openai-gpt-4o-v1"],
     ["chatgpt", "GPT-4.1", "openai-gpt-4-1-v1"],
+    ["chatgpt", "OpenAI GPT-4.1", "openai-gpt-4-1-v1"],
     ["claude", "Claude 3.7 Sonnet", "anthropic-claude-3-7-sonnet-v1"],
-    ["gemini", "Gemini 2.5 Pro", "google-gemini-apps-median-v1"],
+    ["claude", "Anthropic Claude 3.7 Sonnet", "anthropic-claude-3-7-sonnet-v1"],
+    ["claude", "Claude 3.5 Sonnet", "anthropic-claude-3-5-sonnet-v1"],
+    ["claude", "Anthropic Claude 3.5 Haiku", "anthropic-claude-3-5-haiku-v1"],
+    ["gemini", "Gemini Apps", "google-gemini-apps-median-v1"],
+    ["gemini", "Google Gemini Apps", "google-gemini-apps-median-v1"],
     ["mistral", "Mistral Large 2", "mistral-large-2-disclosure-v1"],
     ["perplexity", "Claude 3.7 Sonnet", "anthropic-claude-3-7-sonnet-v1"],
+    ["perplexity", "GPT-4o", "openai-gpt-4o-v1"],
+    ["perplexity", "Claude 3.5 Sonnet", "anthropic-claude-3-5-sonnet-v1"],
     ["perplexity", "model not disclosed", "perplexity-generic-v1"],
   ] as const)("resolves %s / %s", (platform, model, expectedProfileId) => {
     expect(resolveImpactProfileId(platform, model)).toBe(expectedProfileId);
+  });
+
+  it.each([
+    ["chatgpt", "GPT-4o mini"],
+    ["chatgpt", "OpenAI GPT-4o mini"],
+    ["chatgpt", "GPT-4.1 mini"],
+    ["chatgpt", "GPT-4.1 nano"],
+    ["chatgpt", "GPT-4o 2024-08-06"],
+    ["chatgpt", "GPT-4.1 2025-04-14"],
+    ["claude", "Claude 3.7 Sonnet Extended Thinking"],
+    ["claude", "Anthropic Claude 3.7 Sonnet Extended Thinking"],
+    ["claude", "Claude 3.7 Sonnet 2025-02-24"],
+    ["claude", "Claude 3.5"],
+    ["claude", "Claude 3.5 Sonnet Extended Thinking"],
+    ["claude", "Claude 3.5 Haiku 2025-06-01"],
+    ["gemini", "Gemini 2.5 Pro"],
+    ["gemini", "Gemini 2.5 Flash"],
+    ["perplexity", "GPT-4o mini"],
+    ["perplexity", "GPT-4.1 nano"],
+    ["perplexity", "Claude 3.7 Sonnet Extended Thinking"],
+    ["perplexity", "Claude 3.7 Sonnet 2025-02-24"],
+    ["perplexity", "Claude 3.5"],
+    ["perplexity", "Claude 3.5 Sonnet Extended Thinking"],
+  ] as const)("fails closed for unsupported %s label %s", (platform, model) => {
+    expect(matchImpactProfileId(platform, model)).toBeNull();
+    expect(resolveImpactProfileId(platform, model)).toBe(
+      impactRegistry.platformFallbacks[platform],
+    );
+  });
+
+  it("uses structured aliases instead of free substring matchers", () => {
+    for (const profile of rawRegistry.profiles) {
+      expect(profile).not.toHaveProperty("modelMatchers");
+      expect(profile).toHaveProperty("modelAliases");
+      expect(profile.modelAliases).toEqual({
+        aliases: expect.any(Array),
+        providerPrefixes: expect.any(Array),
+      });
+    }
   });
 
   it("uses a platform-specific fallback for an unknown model", () => {
@@ -84,6 +137,15 @@ describe("impact profile registry", () => {
     [
       "invalid multiplier",
       (copy) => (requireFirst(copy.profiles).indicators.energyWh.lowMultiplier = 2),
+    ],
+    [
+      "unsafe empty model alias",
+      (copy) => {
+        requireFirst(copy.profiles).modelAliases = {
+          aliases: [""],
+          providerPrefixes: [],
+        };
+      },
     ],
     [
       "circular proxy",

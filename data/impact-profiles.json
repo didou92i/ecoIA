@@ -1,12 +1,13 @@
 {
-  "methodologyVersion": "2026-07-18.1",
+  "methodologyVersion": "2026-07-19.2",
   "sources": [
     {
       "id": "how-hungry-v6",
       "title": "How Hungry is AI? Benchmarking Energy, Water, and Carbon Footprint of LLM Inference",
       "url": "https://arxiv.org/abs/2505.09598v6",
-      "publicationDate": "2025-11-24",
-      "accessedDate": "2026-07-18",
+      "publicationDate": "2025-05-14",
+      "revisionDate": "2025-11-24",
+      "accessedDate": "2026-07-19",
       "primary": true,
       "scope": "Operational inference estimates derived from public API performance, inferred hardware, PUE, WUE and grid carbon intensity.",
       "limitations": [
@@ -20,7 +21,7 @@
       "title": "How much energy does Google’s AI use? We did the math",
       "url": "https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference/",
       "publicationDate": "2025-08-21",
-      "accessedDate": "2026-07-18",
+      "accessedDate": "2026-07-19",
       "primary": true,
       "scope": "Median Gemini Apps text-generation prompt measured from May 2025 production data, including serving-system overhead.",
       "limitations": [
@@ -34,7 +35,7 @@
       "title": "Our contribution to a global environmental standard for AI",
       "url": "https://mistral.ai/news/our-contribution-to-a-global-environmental-standard-for-ai/",
       "publicationDate": "2025-07-22",
-      "accessedDate": "2026-07-18",
+      "accessedDate": "2026-07-19",
       "primary": true,
       "scope": "Marginal lifecycle impacts of using Le Chat for a 400-token Mistral Large 2 response, excluding the user terminal.",
       "limitations": [
@@ -50,7 +51,7 @@
       "version": 1,
       "displayName": "Assistant IA générique",
       "platforms": ["chatgpt", "claude", "gemini", "mistral", "perplexity"],
-      "modelMatchers": [],
+      "modelAliases": { "aliases": [], "providerPrefixes": [] },
       "limitations": [
         "Generic proxy used only when no closer sourced profile is available.",
         "Its intentionally wide range must not be read as a model measurement."
@@ -96,18 +97,18 @@
       "version": 1,
       "displayName": "OpenAI GPT-4o",
       "platforms": ["chatgpt"],
-      "modelMatchers": ["gpt 4o", "4o"],
+      "modelAliases": { "aliases": ["gpt 4o"], "providerPrefixes": ["openai"] },
       "limitations": [
-        "Non-negative linear fit of three published query shapes; not an OpenAI measurement.",
+        "Exact non-negative affine fit of three v6 query-shape means; not an OpenAI measurement.",
         "Operational scope only and unknown production batch size."
       ],
       "indicators": {
         "energyWh": {
           "estimator": "token-linear",
           "unit": "Wh",
-          "base": 0.120982906,
-          "inputPer1k": 0.130940171,
-          "outputPer1k": 0.963076923,
+          "base": 0.12098290598290351,
+          "inputPer1k": 0.13094017094017057,
+          "outputPer1k": 0.963076923076927,
           "lowMultiplier": 0.5,
           "highMultiplier": 2,
           "confidence": "C",
@@ -116,9 +117,9 @@
         "waterMl": {
           "estimator": "token-linear",
           "unit": "ml",
-          "base": 0.558681777,
-          "inputPer1k": 0.604663004,
-          "outputPer1k": 4.447351648,
+          "base": 0.5586817765567651,
+          "inputPer1k": 0.604663003663002,
+          "outputPer1k": 4.447351648351667,
           "lowMultiplier": 0.4,
           "highMultiplier": 2.5,
           "confidence": "C",
@@ -127,9 +128,9 @@
         "carbonG": {
           "estimator": "token-linear",
           "unit": "gCO2e",
-          "base": 0.042344017,
-          "inputPer1k": 0.04582906,
-          "outputPer1k": 0.337076923,
+          "base": 0.04234401709401622,
+          "inputPer1k": 0.0458290598290597,
+          "outputPer1k": 0.33707692307692444,
           "lowMultiplier": 0.4,
           "highMultiplier": 2.5,
           "confidence": "C",
@@ -142,18 +143,18 @@
       "version": 1,
       "displayName": "OpenAI GPT-4.1",
       "platforms": ["chatgpt"],
-      "modelMatchers": ["gpt 4 1", "4 1"],
+      "modelAliases": { "aliases": ["gpt 4 1"], "providerPrefixes": ["openai"] },
       "limitations": [
-        "Constrained non-negative fit of three modeled query shapes.",
-        "The fitted output coefficient absorbs effects that cannot be separated from the published data."
+        "Unweighted active-set non-negative least-squares fit of three v6 query-shape means.",
+        "The zero-base fit has RMSE 0.04113 Wh and maximum relative residual 7.752%; the output coefficient absorbs effects that the source shapes cannot separate."
       ],
       "indicators": {
         "energyWh": {
           "estimator": "token-linear",
           "unit": "Wh",
           "base": 0,
-          "inputPer1k": 0.03675,
-          "outputPer1k": 2.987079,
+          "inputPer1k": 0.014946681175189602,
+          "outputPer1k": 3.123414581066381,
           "lowMultiplier": 0.4,
           "highMultiplier": 2.5,
           "confidence": "C",
@@ -163,8 +164,8 @@
           "estimator": "token-linear",
           "unit": "ml",
           "base": 0,
-          "inputPer1k": 0.16970625,
-          "outputPer1k": 13.793904096,
+          "inputPer1k": 0.0690216384268577,
+          "outputPer1k": 14.42348233328154,
           "lowMultiplier": 0.3,
           "highMultiplier": 3,
           "confidence": "C",
@@ -174,8 +175,8 @@
           "estimator": "token-linear",
           "unit": "gCO2e",
           "base": 0,
-          "inputPer1k": 0.0128625,
-          "outputPer1k": 1.04547765,
+          "inputPer1k": 0.005231338411316361,
+          "outputPer1k": 1.0931951033732332,
           "lowMultiplier": 0.3,
           "highMultiplier": 3,
           "confidence": "C",
@@ -188,7 +189,7 @@
       "version": 1,
       "displayName": "OpenAI — profil générique",
       "platforms": ["chatgpt"],
-      "modelMatchers": [],
+      "modelAliases": { "aliases": [], "providerPrefixes": [] },
       "limitations": ["Unknown OpenAI model proxied to GPT-4o with a wider uncertainty range."],
       "indicators": {
         "energyWh": {
@@ -228,18 +229,21 @@
       "version": 1,
       "displayName": "Anthropic Claude 3.7 Sonnet",
       "platforms": ["claude"],
-      "modelMatchers": ["claude 3 7 sonnet", "3 7 sonnet"],
+      "modelAliases": {
+        "aliases": ["claude 3 7 sonnet"],
+        "providerPrefixes": ["anthropic"]
+      },
       "limitations": [
-        "Linear fit of three published modeled query shapes; not an Anthropic measurement.",
-        "Operational scope only and inferred AWS infrastructure parameters."
+        "Exact non-negative affine fit of three v6 query-shape means; not an Anthropic measurement.",
+        "The v6 row is plain Claude 3.7 Sonnet and does not document Extended Thinking as a separate runtime variant."
       ],
       "indicators": {
         "energyWh": {
           "estimator": "token-linear",
           "unit": "Wh",
-          "base": 0.118042735,
-          "inputPer1k": 0.146649573,
-          "outputPer1k": 2.724307692,
+          "base": 0.11804273504273555,
+          "inputPer1k": 0.14664957264957268,
+          "outputPer1k": 2.7243076923076917,
           "lowMultiplier": 0.5,
           "highMultiplier": 2,
           "confidence": "C",
@@ -248,9 +252,9 @@
         "waterMl": {
           "estimator": "token-linear",
           "unit": "ml",
-          "base": 0.621836703,
-          "inputPer1k": 0.772534512,
-          "outputPer1k": 14.351366154,
+          "base": 0.6218367026540738,
+          "inputPer1k": 0.7725345119208279,
+          "outputPer1k": 14.35136615384615,
           "lowMultiplier": 0.4,
           "highMultiplier": 2.5,
           "confidence": "C",
@@ -259,11 +263,109 @@
         "carbonG": {
           "estimator": "token-linear",
           "unit": "gCO2e",
-          "base": 0.033878265,
-          "inputPer1k": 0.042088427,
-          "outputPer1k": 0.781876308,
+          "base": 0.0338782649572651,
+          "inputPer1k": 0.04208842735042736,
+          "outputPer1k": 0.7818763076923074,
           "lowMultiplier": 0.4,
           "highMultiplier": 2.5,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    },
+    {
+      "id": "anthropic-claude-3-5-sonnet-v1",
+      "version": 1,
+      "displayName": "Anthropic Claude 3.5 Sonnet",
+      "platforms": ["claude"],
+      "modelAliases": {
+        "aliases": ["claude 3 5 sonnet"],
+        "providerPrefixes": ["anthropic"]
+      },
+      "limitations": [
+        "Unweighted active-set non-negative least-squares fit of three v6 query-shape means.",
+        "The zero-base fit has RMSE 0.03499 Wh and maximum relative residual 5.903%; dated, suffixed and Extended Thinking variants are excluded."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "token-linear",
+          "unit": "Wh",
+          "base": 0,
+          "inputPer1k": 0.27591064822011435,
+          "outputPer1k": 3.342830032644182,
+          "lowMultiplier": 0.4,
+          "highMultiplier": 2.5,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "token-linear",
+          "unit": "ml",
+          "base": 0,
+          "inputPer1k": 1.453468251597434,
+          "outputPer1k": 17.60967673512401,
+          "lowMultiplier": 0.3,
+          "highMultiplier": 3,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "token-linear",
+          "unit": "gCO2e",
+          "base": 0,
+          "inputPer1k": 0.07918635603917282,
+          "outputPer1k": 0.9593922193688802,
+          "lowMultiplier": 0.3,
+          "highMultiplier": 3,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        }
+      }
+    },
+    {
+      "id": "anthropic-claude-3-5-haiku-v1",
+      "version": 1,
+      "displayName": "Anthropic Claude 3.5 Haiku",
+      "platforms": ["claude"],
+      "modelAliases": {
+        "aliases": ["claude 3 5 haiku"],
+        "providerPrefixes": ["anthropic"]
+      },
+      "limitations": [
+        "Unweighted active-set non-negative least-squares fit of three v6 query-shape means.",
+        "The zero-base fit has RMSE 0.18239 Wh and a prominent 30.713% maximum relative residual; dated, suffixed and Extended Thinking variants are excluded."
+      ],
+      "indicators": {
+        "energyWh": {
+          "estimator": "token-linear",
+          "unit": "Wh",
+          "base": 0,
+          "inputPer1k": 0.1731355821545144,
+          "outputPer1k": 4.190460065288365,
+          "lowMultiplier": 0.25,
+          "highMultiplier": 3,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "waterMl": {
+          "estimator": "token-linear",
+          "unit": "ml",
+          "base": 0,
+          "inputPer1k": 0.9120600219918604,
+          "outputPer1k": 22.074902522879604,
+          "lowMultiplier": 0.2,
+          "highMultiplier": 4,
+          "confidence": "C",
+          "sourceId": "how-hungry-v6"
+        },
+        "carbonG": {
+          "estimator": "token-linear",
+          "unit": "gCO2e",
+          "base": 0,
+          "inputPer1k": 0.04968991207834563,
+          "outputPer1k": 1.2026620387377607,
+          "lowMultiplier": 0.2,
+          "highMultiplier": 4,
           "confidence": "C",
           "sourceId": "how-hungry-v6"
         }
@@ -274,7 +376,7 @@
       "version": 1,
       "displayName": "Claude — profil générique",
       "platforms": ["claude"],
-      "modelMatchers": [],
+      "modelAliases": { "aliases": [], "providerPrefixes": [] },
       "limitations": ["Unknown Claude model proxied to Claude 3.7 Sonnet with wider uncertainty."],
       "indicators": {
         "energyWh": {
@@ -314,7 +416,7 @@
       "version": 1,
       "displayName": "Gemini Apps — prompt médian mai 2025",
       "platforms": ["gemini"],
-      "modelMatchers": ["gemini"],
+      "modelAliases": { "aliases": ["gemini apps"], "providerPrefixes": ["google"] },
       "limitations": [
         "Per-prompt production median; not scaled linearly by visible tokens.",
         "May 2025 Gemini Apps model mix and behavior may differ from the current response."
@@ -354,7 +456,7 @@
       "version": 1,
       "displayName": "Google Gemini — profil générique",
       "platforms": ["gemini"],
-      "modelMatchers": [],
+      "modelAliases": { "aliases": [], "providerPrefixes": [] },
       "limitations": [
         "Unknown Gemini model proxied to the generic assistant profile with wide grade-D ranges."
       ],
@@ -396,7 +498,10 @@
       "version": 1,
       "displayName": "Mistral Large 2 / Le Chat",
       "platforms": ["mistral"],
-      "modelMatchers": ["mistral large 2", "large 2"],
+      "modelAliases": {
+        "aliases": ["mistral large 2", "large 2"],
+        "providerPrefixes": ["mistral"]
+      },
       "limitations": [
         "Water and carbon are the disclosed impact of one 400-output-token response and are not linearly scaled.",
         "Energy is a separate grade-D generic operational proxy because Mistral did not disclose it."
@@ -437,7 +542,7 @@
       "version": 1,
       "displayName": "Mistral — profil générique",
       "platforms": ["mistral"],
-      "modelMatchers": [],
+      "modelAliases": { "aliases": [], "providerPrefixes": [] },
       "limitations": [
         "Unknown Mistral model proxied from generic energy and the Large 2 disclosure with wide grade-D ranges."
       ],
@@ -479,7 +584,7 @@
       "version": 1,
       "displayName": "Perplexity — modèle non divulgué",
       "platforms": ["perplexity"],
-      "modelMatchers": [],
+      "modelAliases": { "aliases": [], "providerPrefixes": [] },
       "limitations": [
         "Perplexity can route to different underlying models and add retrieval/tool work not visible to ecoIA.",
         "The generic range excludes unobservable search and tool infrastructure."

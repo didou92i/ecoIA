@@ -71,25 +71,33 @@ describe("impact engine", () => {
   });
 
   it.each([
-    ["openai-gpt-4o-v1", 100, 300, 0.423],
-    ["openai-gpt-4o-v1", 1_000, 1_000, 1.215],
-    ["openai-gpt-4o-v1", 10_000, 1_500, 2.875],
-    ["openai-gpt-4-1-v1", 100, 300, 0.871],
-    ["openai-gpt-4-1-v1", 1_000, 1_000, 3.161],
-    ["openai-gpt-4-1-v1", 10_000, 1_500, 4.833],
-    ["anthropic-claude-3-7-sonnet-v1", 100, 300, 0.95],
-    ["anthropic-claude-3-7-sonnet-v1", 1_000, 1_000, 2.989],
-    ["anthropic-claude-3-7-sonnet-v1", 10_000, 1_500, 5.671],
+    ["openai-gpt-4o-v1", 100, 300, 0.423, 1e-9],
+    ["openai-gpt-4o-v1", 1_000, 1_000, 1.215, 1e-9],
+    ["openai-gpt-4o-v1", 10_000, 1_500, 2.875, 1e-9],
+    ["openai-gpt-4-1-v1", 100, 300, 0.871, 0.078],
+    ["openai-gpt-4-1-v1", 1_000, 1_000, 3.161, 0.078],
+    ["openai-gpt-4-1-v1", 10_000, 1_500, 4.833, 0.078],
+    ["anthropic-claude-3-7-sonnet-v1", 100, 300, 0.95, 1e-9],
+    ["anthropic-claude-3-7-sonnet-v1", 1_000, 1_000, 2.989, 1e-9],
+    ["anthropic-claude-3-7-sonnet-v1", 10_000, 1_500, 5.671, 1e-9],
+    ["anthropic-claude-3-5-sonnet-v1", 100, 300, 0.973, 0.06],
+    ["anthropic-claude-3-5-sonnet-v1", 1_000, 1_000, 3.638, 0.06],
+    ["anthropic-claude-3-5-sonnet-v1", 10_000, 1_500, 7.772, 0.06],
+    ["anthropic-claude-3-5-haiku-v1", 100, 300, 0.975, 0.308],
+    ["anthropic-claude-3-5-haiku-v1", 1_000, 1_000, 4.464, 0.308],
+    ["anthropic-claude-3-5-haiku-v1", 10_000, 1_500, 8.01, 0.308],
   ])(
     "reproduces the published query shape for %s",
-    (profileId, inputCount, outputCount, publishedEnergyWh) => {
+    (profileId, inputCount, outputCount, publishedEnergyWh, maximumRelativeError) => {
       const observed: VisibleTokenEstimate = {
         input: createRange(inputCount, inputCount, inputCount),
         output: createRange(outputCount, outputCount, outputCount),
         source: "observed",
       };
       const central = estimateImpact(profileId, observed).energyWh.range.central;
-      expect(Math.abs(central - publishedEnergyWh) / publishedEnergyWh).toBeLessThan(0.08);
+      expect(Math.abs(central - publishedEnergyWh) / publishedEnergyWh).toBeLessThanOrEqual(
+        maximumRelativeError,
+      );
     },
   );
 

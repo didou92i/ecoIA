@@ -1,7 +1,7 @@
 # Méthodologie environnementale ecoIA
 
-Version : `2026-07-18.1`
-Dernière vérification des sources : 18 juillet 2026
+Version : `2026-07-19.2`
+Dernière vérification des sources : 19 juillet 2026
 
 ## Ce que mesure ecoIA
 
@@ -34,22 +34,26 @@ provenance du profil ; ils ne prouvent pas que le fournisseur a mesuré l’inte
 
 ## Profils et provenance
 
-Le registre machine-readable est `data/impact-profiles.json`. Une modification est refusée par les
-tests si un profil n’a pas de source HTTPS, de date, de périmètre, de limites, d’unité reconnue ou de
-fourchette valide. Les proxys circulaires sont également interdits.
+Le registre machine-readable est `data/impact-profiles.json`. L’inventaire transversal des sources
+d’impact, d’équivalence automobile et de calibration des tokens est
+`data/source-inventory.json`. Une modification est refusée par les tests si un profil n’a pas de
+source HTTPS, de date, de périmètre, de limites, d’unité reconnue ou de fourchette valide. Les
+proxys circulaires sont également interdits.
 
 ### Revue de fraîcheur des sources
 
-Chaque source du registre a une `accessedDate`. La commande `npm run source-freshness` lit
-uniquement `data/impact-profiles.json` avec les bibliothèques standard de Node.js. Elle demande une
-revue si une date d’accès a plus de 366 jours strictement ; une source à exactement 366 jours reste
-acceptée. Les identifiants des sources à revoir sont affichés dans un ordre stable et la commande
-sort avec un code non nul. Une date source ou date de revue invalide arrête aussi la vérification.
+Chaque source de l’inventaire a une `accessedDate`. La commande `npm run source-freshness` lit
+uniquement `data/source-inventory.json` avec les bibliothèques standard de Node.js. Elle couvre les
+profils d’impact, le facteur automobile et toutes les familles de calibration des tokens. Elle
+demande une revue si une date d’accès a plus de 366 jours strictement ; une source à exactement 366
+jours reste acceptée. Les identifiants des sources à revoir sont affichés dans un ordre stable et la
+commande sort avec un code non nul. Une date source ou date de revue invalide arrête aussi la
+vérification.
 
 Cette commande ne télécharge aucune URL, n’écrit aucun fichier et ne modifie jamais les coefficients
 automatiquement. `npm run verify` l’exécute avant le build : une revue consiste donc à vérifier la
-source humainement, à mettre à jour le registre et les calculs associés, puis à livrer une nouvelle
-version de l’extension.
+source humainement, à mettre à jour l’inventaire, les registres et les calculs associés, puis à
+livrer une nouvelle version de l’extension.
 
 ## Contexte conversationnel visible
 
@@ -89,7 +93,7 @@ L’eau et le carbone utilisent donc un profil `prompt-median` de confiance A. L
 de télévision utilisent séparément le proxy générique de confiance D. Pour un autre modèle
 Mistral, les valeurs Large 2 sont des proxys de confiance D avec une fourchette encore élargie.
 
-### GPT-4o, GPT-4.1 et Claude 3.7 Sonnet
+### GPT-4o, GPT-4.1, Claude 3.7 Sonnet et Claude 3.5
 
 L’étude *How Hungry is AI?* combine les performances d’API publiques, une inférence du matériel et
 des paramètres d’infrastructure pour trois formes de requêtes :
@@ -100,14 +104,35 @@ des paramètres d’infrastructure pour trois formes de requêtes :
 
 Source : https://arxiv.org/abs/2505.09598v6
 
+La première publication est datée du 14 mai 2025 ; les données utilisées proviennent de la révision
+v6 du 24 novembre 2025, consultée le 19 juillet 2026. La transcription locale
+`data/how-hungry-ai-v6.json` conserve les 15 moyennes et les 15 écarts-types du tableau 4 pour
+GPT-4o, GPT-4.1, Claude 3.7 Sonnet, Claude 3.5 Sonnet et Claude 3.5 Haiku, ainsi que les formes de
+requêtes et les paramètres d’infrastructure du tableau 1.
+
 Les valeurs d’énergie centrales publiées sont ajustées à la forme non négative :
 
 `energyWh = base + inputTokens / 1000 × inputWhPer1k + outputTokens / 1000 × outputWhPer1k`
 
-Pour GPT-4o et Claude 3.7, les trois coefficients sont résolus sur les trois formes. Pour GPT-4.1,
-un ajustement aux moindres carrés contraint les coefficients à rester positifs, car la résolution
-exacte produirait une base négative sans sens physique. Le registre conserve les coefficients avec
-une précision de calcul, tandis que l’interface arrondit fortement les résultats.
+Le script pur `scripts/derive-impact-coefficients.mjs`, exécutable avec
+`npm run impact-coefficients`, énumère les ensembles actifs possibles d’un active-set NNLS sans
+dépendance, accès réseau ni écriture. Il résout exactement les trois coefficients lorsque la
+solution est non négative (GPT-4o et Claude 3.7 Sonnet). Pour GPT-4.1, Claude 3.5 Sonnet et Claude
+3.5 Haiku, la solution non contrainte aurait une base négative : l’ajustement NNLS fixe donc la base
+à zéro et minimise la somme des carrés non pondérée sur les trois formes. Le registre conserve les
+coefficients avec une précision de calcul, tandis que l’interface arrondit fortement les résultats.
+
+Les contrôles reproduits par la commande sont :
+
+- GPT-4o et Claude 3.7 Sonnet : résidu numérique nul à la précision flottante ;
+- GPT-4.1 : RMSE `0,04113 Wh`, résidu relatif maximal `7,7519 %` ;
+- Claude 3.5 Sonnet : RMSE `0,03499 Wh`, résidu relatif maximal `5,9034 %` ;
+- Claude 3.5 Haiku : RMSE `0,18239 Wh`, résidu relatif maximal `30,713 %`.
+
+Le résidu important de Claude 3.5 Haiku indique qu’une forme affine non négative sépare mal les
+effets de base, d’entrée et de sortie avec seulement trois formes de requête. Ce profil reste de
+confiance C, avec des fourchettes larges et cette limite affichée dans le registre ; il ne doit pas
+être interprété comme une régression fidèle de chaque forme publiée.
 
 L’eau et le carbone suivent les paramètres de l’étude :
 
@@ -115,8 +140,21 @@ L’eau et le carbone suivent les paramètres de l’étude :
 
 `waterL = energyKWh / PUE × onsiteWueLPerKWh + energyKWh × offsiteWueLPerKWh`
 
-Ces profils sont de confiance C. Les bornes de 0,3–0,5× à 2–3× couvrent une partie de l’incertitude
-systémique ; elles ne peuvent pas englober toutes les configurations réelles.
+Les paramètres OpenAI/Azure sont PUE `1,12`, WUE sur site `0,30 L/kWh`, WUE hors site
+`4,35 L/kWh` et intensité carbone `0,35 kgCO2e/kWh`. Les paramètres Anthropic/AWS sont PUE `1,14`,
+WUE sur site `0,18 L/kWh`, WUE hors site `5,11 L/kWh` et intensité carbone
+`0,287 kgCO2e/kWh`. Ces profils sont de confiance C. Les bornes élargies couvrent une partie de
+l’incertitude systémique ; elles ne peuvent pas englober toutes les configurations réelles.
+
+### Identité exacte des modèles
+
+Un profil spécifique n’est sélectionné que si le libellé normalisé correspond à un alias exact,
+éventuellement précédé d’un fournisseur explicitement autorisé. Une variante datée, suffixée ou
+« Extended Thinking » non documentée par la source est dirigée vers le profil générique. La ligne
+v6 est « Claude 3.7 Sonnet » sans variante ET distincte ; « Claude 3.7 Sonnet ET » n’hérite donc pas
+de ce profil. De même, la médiane « Gemini Apps » ne documente pas séparément Gemini 2.5 Pro ou
+Gemini 2.5 Flash. Cette politique fail-closed est détaillée dans
+`docs/adr/0002-evidence-gated-model-profiles.md`.
 
 ## Profil générique
 

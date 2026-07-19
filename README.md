@@ -76,8 +76,10 @@ l’icône ecoIA dans la barre du navigateur ouvre ou replie aussi le panneau su
 charge.
 
 1. Laissez « Détection automatique » lorsque le panneau reconnaît le modèle affiché par la
-   plateforme. ecoIA applique alors le profil documenté correspondant. Si le modèle n’est pas
-   communiqué, le panneau l’indique et utilise un profil générique plus incertain.
+   plateforme. ecoIA applique alors le profil documenté correspondant, notamment pour Claude 3.5
+   Sonnet et Claude 3.5 Haiku. Si le modèle n’est pas communiqué, le panneau l’indique et utilise
+   un profil générique plus incertain. Un modèle affiché mais non documenté, daté ou suffixé utilise
+   également le profil générique : un nom proche ne constitue pas une preuve d’équivalence.
 2. Lisez `≈` comme « environ » : c’est l’estimation centrale, pas une mesure du fournisseur. La
    ligne « de … à … » écrit séparément la borne basse et la borne haute possible ; ce n’est pas une
    soustraction ni une promesse de précision.
@@ -129,6 +131,7 @@ npm run format:check
 npm run lint
 npm run typecheck
 npm test
+npm run impact-coefficients
 npm run source-freshness
 npm run e2e
 npm run audit
@@ -139,8 +142,9 @@ npm run size
 
 Le runtime n’a aucune dépendance JavaScript. Consultez [CONTRIBUTING.md](CONTRIBUTING.md),
 [le guide d’adaptateur](docs/adding-an-adapter.md) et
-[le guide de profil d’impact](docs/adding-an-impact-profile.md). La décision d’architecture est
-consignée dans [l’ADR 0001](docs/adr/0001-local-privacy-first-extension.md).
+[le guide de profil d’impact](docs/adding-an-impact-profile.md). Les décisions d’architecture sont
+consignées dans [l’ADR 0001](docs/adr/0001-local-privacy-first-extension.md) et
+[l’ADR 0002](docs/adr/0002-evidence-gated-model-profiles.md).
 
 ## English summary
 

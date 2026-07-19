@@ -43,6 +43,7 @@ export class WidgetController {
   private onPreferencesChange: (preferences: WidgetPreferences) => void = () => undefined;
   private onModelSelectionChange: (profileId: string | null) => void = () => undefined;
   private allowedProfileIds = new Set<string>();
+  private lastValidSelectedProfileId: string | null = null;
   private modelOptionsSignature = "";
   private readonly cleanupCallbacks: Array<() => void> = [];
   private dragState: { pointerId: number; offsetX: number; offsetY: number } | null = null;
@@ -85,6 +86,7 @@ export class WidgetController {
     selectedProfileId: string | null,
   ): void {
     this.allowedProfileIds = new Set(options.map((option) => option.id));
+    this.lastValidSelectedProfileId = selectedProfileId;
     const signature = `${platform}:${options
       .map((option) => `${option.id}:${option.label}:${option.isGeneric ? "generic" : "specific"}`)
       .join("|")}`;
@@ -141,8 +143,11 @@ export class WidgetController {
         return;
       }
       if (this.allowedProfileIds.has(requestedProfileId)) {
+        this.lastValidSelectedProfileId = requestedProfileId;
         this.onModelSelectionChange(requestedProfileId);
+        return;
       }
+      this.elements.modelSelect.value = this.lastValidSelectedProfileId ?? "";
     });
     this.listen(this.elements.details, "toggle", () => this.scheduleReclamp());
     this.listen(this.elements.dragHandle, "pointerdown", (event) =>

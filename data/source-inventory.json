@@ -1,0 +1,86 @@
+{
+  "version": "2026-07-19.1",
+  "sources": [
+    {
+      "id": "how-hungry-v6",
+      "title": "How Hungry is AI? Benchmarking Energy, Water, and Carbon Footprint of LLM Inference",
+      "url": "https://arxiv.org/abs/2505.09598v6",
+      "publicationDate": "2025-05-14",
+      "revisionDate": "2025-11-24",
+      "accessedDate": "2026-07-19",
+      "category": "impact-profile"
+    },
+    {
+      "id": "google-gemini-median-2025",
+      "title": "How much energy does Google’s AI use? We did the math",
+      "url": "https://cloud.google.com/blog/products/infrastructure/measuring-the-environmental-impact-of-ai-inference/",
+      "publicationDate": "2025-08-21",
+      "accessedDate": "2026-07-19",
+      "category": "impact-profile"
+    },
+    {
+      "id": "mistral-lca-2025",
+      "title": "Our contribution to a global environmental standard for AI",
+      "url": "https://mistral.ai/news/our-contribution-to-a-global-environmental-standard-for-ai/",
+      "publicationDate": "2025-07-22",
+      "accessedDate": "2026-07-19",
+      "category": "impact-profile"
+    },
+    {
+      "id": "ademe-datagir-car-193-2",
+      "title": "Lexique environnemental et changement climatique — facteur voiture ADEME",
+      "url": "https://docs.datagir.ademe.fr/documentation/lexique-environnemental-et-changement-climat",
+      "accessedDate": "2026-07-19",
+      "category": "equivalence"
+    },
+    {
+      "id": "token-openai-tiktoken",
+      "title": "OpenAI tiktoken 0.13.0 — o200k_base",
+      "url": "https://github.com/openai/tiktoken",
+      "accessedDate": "2026-07-19",
+      "category": "token-calibration"
+    },
+    {
+      "id": "token-anthropic-tokenizer",
+      "title": "Anthropic tokenizer TypeScript 0.0.4",
+      "url": "https://github.com/anthropics/anthropic-tokenizer-typescript",
+      "accessedDate": "2026-07-19",
+      "category": "token-calibration"
+    },
+    {
+      "id": "token-mistral-common",
+      "title": "Mistral common 1.11.6 — tokenizer V7",
+      "url": "https://github.com/mistralai/mistral-common",
+      "accessedDate": "2026-07-19",
+      "category": "token-calibration"
+    },
+    {
+      "id": "token-google-gemini-docs",
+      "title": "Gemini API — Understand and count tokens",
+      "url": "https://ai.google.dev/gemini-api/docs/tokens",
+      "accessedDate": "2026-07-19",
+      "category": "token-calibration"
+    }
+  ],
+  "domains": {
+    "impactProfiles": {
+      "sourceIds": ["how-hungry-v6", "google-gemini-median-2025", "mistral-lca-2025"]
+    },
+    "carEquivalence": {
+      "sourceId": "ademe-datagir-car-193-2",
+      "gramsCo2ePerVehicleKilometre": 193.2
+    },
+    "tokenCalibration": {
+      "openai": ["token-openai-tiktoken"],
+      "claude": ["token-anthropic-tokenizer"],
+      "gemini": ["token-google-gemini-docs"],
+      "mistral": ["token-mistral-common"],
+      "generic": [
+        "token-openai-tiktoken",
+        "token-anthropic-tokenizer",
+        "token-mistral-common",
+        "token-google-gemini-docs"
+      ]
+    }
+  }
+}

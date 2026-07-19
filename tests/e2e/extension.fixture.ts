@@ -22,6 +22,7 @@ const fixtureRoutes = new Set([
   "/missing-model",
   "/manual-model",
   "/model-lifecycle",
+  "/c/synthetic-conversation-a",
   "/with-context",
   "/no-context",
   "/network-check",
