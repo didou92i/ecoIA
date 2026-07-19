@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  getModelProfileOptions,
-  resolveModelProfile,
-} from "../../src/impact/model-selection";
+import { getModelProfileOptions, resolveModelProfile } from "../../src/impact/model-selection";
 
 describe("model profile selection", () => {
   it("lists only documented ChatGPT profiles plus its generic fallback", () => {
@@ -16,9 +13,7 @@ describe("model profile selection", () => {
       ]),
     );
     expect(options.some((option) => option.id === "generic-assistant-v1")).toBe(false);
-    expect(options.some((option) => option.id === "anthropic-claude-3-7-sonnet-v1")).toBe(
-      false,
-    );
+    expect(options.some((option) => option.id === "anthropic-claude-3-7-sonnet-v1")).toBe(false);
     expect(new Set(options.map((option) => option.id)).size).toBe(options.length);
     expect(options.at(-1)?.id).toBe("openai-generic-v1");
     expect(options.every((option) => option.label.length > 0)).toBe(true);

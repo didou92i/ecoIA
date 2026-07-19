@@ -49,7 +49,9 @@ describe("impact data-quality disclosure", () => {
   });
 
   it("orders electricity, water and carbon and chooses the worst grade overall", () => {
-    const disclosure = buildImpactDisclosure(estimateImpact("mistral-large-2-disclosure-v1", tokens));
+    const disclosure = buildImpactDisclosure(
+      estimateImpact("mistral-large-2-disclosure-v1", tokens),
+    );
 
     expect(disclosure.indicators).toEqual([
       expect.objectContaining({ key: "energy", label: "Électricité", grade: "D" }),
@@ -58,13 +60,13 @@ describe("impact data-quality disclosure", () => {
     ]);
     expect(disclosure.overallGrade).toBe("D");
     expect(disclosure.overallLabel).toBe("Qualité des données · D");
-    expect(disclosure.overallExplanation).toBe(
-      "D — proxy générique avec forte incertitude",
-    );
+    expect(disclosure.overallExplanation).toBe("D — proxy générique avec forte incertitude");
   });
 
   it("deduplicates source records in indicator order with their validated metadata", () => {
-    const disclosure = buildImpactDisclosure(estimateImpact("mistral-large-2-disclosure-v1", tokens));
+    const disclosure = buildImpactDisclosure(
+      estimateImpact("mistral-large-2-disclosure-v1", tokens),
+    );
     const howHungry = impactRegistry.sources.find((source) => source.id === "how-hungry-v6");
     const mistral = impactRegistry.sources.find((source) => source.id === "mistral-lca-2025");
     if (!howHungry || !mistral) throw new Error("MISSING_TEST_SOURCE");

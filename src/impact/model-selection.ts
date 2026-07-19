@@ -1,10 +1,6 @@
 import type { DetectedModel } from "../adapters/adapter-contract";
 import type { PlatformId } from "../shared/contracts";
-import {
-  getImpactProfile,
-  impactRegistry,
-  matchImpactProfileId,
-} from "./profile-registry";
+import { getImpactProfile, impactRegistry, matchImpactProfileId } from "./profile-registry";
 
 export type ModelResolutionSource = "automatic" | "manual" | "generic";
 
@@ -47,7 +43,10 @@ export function getModelProfileOptions(platform: PlatformId): ModelProfileOption
       return left.displayName.localeCompare(right.displayName, "fr");
     });
 
-  return [...documentedProfileIds.map((profileId) => toOption(profileId, false)), toOption(fallbackId, true)];
+  return [
+    ...documentedProfileIds.map((profileId) => toOption(profileId, false)),
+    toOption(fallbackId, true),
+  ];
 }
 
 function resolveFromProfile(
@@ -84,5 +83,9 @@ export function resolveModelProfile(input: {
     return resolveFromProfile(matchedProfileId, input.detected, "automatic");
   }
 
-  return resolveFromProfile(impactRegistry.platformFallbacks[input.platform], input.detected, "generic");
+  return resolveFromProfile(
+    impactRegistry.platformFallbacks[input.platform],
+    input.detected,
+    "generic",
+  );
 }

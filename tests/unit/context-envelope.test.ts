@@ -6,10 +6,7 @@ import { createRange } from "../../src/shared/range";
 
 const prompt = createRange(100, 120, 140);
 
-function contextEstimate(
-  hasContext: boolean,
-  high = 60,
-): ContextTokenEstimate {
+function contextEstimate(hasContext: boolean, high = 60): ContextTokenEstimate {
   return {
     tokens: createRange(0, 0, high),
     coverage: hasContext ? "complete" : "none",
@@ -38,19 +35,13 @@ describe("input context envelope", () => {
     });
 
     expect(
-      createInputEnvelope(
-        createRange(0, 0, Number.MAX_SAFE_INTEGER - 1),
-        contextEstimate(true, 1),
-      ),
+      createInputEnvelope(createRange(0, 0, Number.MAX_SAFE_INTEGER - 1), contextEstimate(true, 1)),
     ).toEqual({ low: 0, central: 0, high: Number.MAX_SAFE_INTEGER });
   });
 
   it("rejects an unsafe contextual upper-bound sum without saturating", () => {
     expect(() =>
-      createInputEnvelope(
-        createRange(0, 0, Number.MAX_SAFE_INTEGER),
-        contextEstimate(true, 1),
-      ),
+      createInputEnvelope(createRange(0, 0, Number.MAX_SAFE_INTEGER), contextEstimate(true, 1)),
     ).toThrow("INVALID_CONTEXT_ENVELOPE");
   });
 });
