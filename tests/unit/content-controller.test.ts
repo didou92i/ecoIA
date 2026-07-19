@@ -288,6 +288,35 @@ function numericMessages(messages: unknown[]): Array<Record<string, unknown>> {
 describe("content controller", () => {
   beforeEach(() => document.body.replaceChildren());
 
+  it("charge uniquement des coordonnées de widget finies", async () => {
+    const valid = createHarness();
+    valid.local.values["ecoia.preferences.v1"] = {
+      theme: "light",
+      collapsed: false,
+      left: 321,
+      top: 147,
+    };
+    await valid.controller.start();
+    expect(valid.widget.configure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        preferences: expect.objectContaining({ left: 321, top: 147 }),
+      }),
+    );
+    valid.controller.stop();
+
+    const invalid = createHarness();
+    invalid.local.values["ecoia.preferences.v1"] = {
+      theme: "light",
+      collapsed: false,
+      left: Number.POSITIVE_INFINITY,
+      top: 147,
+    };
+    await invalid.controller.start();
+    const configuration = (invalid.widget.configure as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(configuration).not.toHaveProperty("preferences");
+    invalid.controller.stop();
+  });
+
   it("converts page text to numeric metrics before messaging", async () => {
     const { controller, messages, updates, widget } = createHarness();
     await controller.start();

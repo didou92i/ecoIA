@@ -1,10 +1,10 @@
+import { createBrandMark } from "./brand-mark";
+
 export interface WidgetElements {
   panel: HTMLElement;
   expandButton: HTMLButtonElement;
   collapseButton: HTMLButtonElement;
   themeButton: HTMLButtonElement;
-  anchorLeftButton: HTMLButtonElement;
-  anchorRightButton: HTMLButtonElement;
   dragHandle: HTMLButtonElement;
   status: HTMLElement;
   model: HTMLElement;
@@ -54,10 +54,39 @@ function element<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-function iconButton(label: string, glyph: string): HTMLButtonElement {
-  const button = element("button", "icon-button", glyph);
+type IconName = "theme" | "collapse" | "water" | "car" | "television";
+
+const iconPaths: Record<IconName, string> = {
+  theme: "M12 3a9 9 0 1 0 9 9c-2.4 1.5-5.6 1.1-7.5-.9C11.6 9.1 11.1 5.7 12 3Z",
+  collapse: "m7 10 5 5 5-5",
+  water: "M12 3.5s-5 5.6-5 9.2a5 5 0 0 0 10 0c0-3.6-5-9.2-5-9.2Z",
+  car: "M5 15l1.6-5h10.8l1.6 5M4 15h16v3H4zM7 18v2M17 18v2",
+  television: "M4 6h16v11H4zM9 21h6m-3-4v4",
+};
+
+function icon(name: IconName): SVGSVGElement {
+  const namespace = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(namespace, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "1.75");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  svg.setAttribute("focusable", "false");
+  svg.setAttribute("data-icon", name);
+  const path = document.createElementNS(namespace, "path");
+  path.setAttribute("d", iconPaths[name]);
+  svg.append(path);
+  return svg;
+}
+
+function iconButton(label: string, iconName: IconName): HTMLButtonElement {
+  const button = element("button", "icon-button");
   button.type = "button";
   button.setAttribute("aria-label", label);
+  button.append(icon(iconName));
   return button;
 }
 
@@ -88,14 +117,16 @@ function tokenCard(
 }
 
 function impactRow(
-  glyph: string,
+  iconName: IconName,
   labelText: string,
   dataAttribute: string,
   rangeDataAttribute: string,
 ): [HTMLElement, HTMLElement, HTMLElement] {
   const row = element("div", "impact-row");
-  const icon = element("span", "impact-icon", glyph);
-  icon.setAttribute("aria-hidden", "true");
+  row.setAttribute("data-impact-step", "");
+  const iconContainer = element("span", "impact-icon");
+  iconContainer.setAttribute("aria-hidden", "true");
+  iconContainer.append(icon(iconName));
   const content = element("div");
   content.append(element("span", "impact-name", labelText));
   const [estimate, value, range] = estimateContent(
@@ -104,7 +135,7 @@ function impactRow(
     rangeDataAttribute,
   );
   content.append(estimate);
-  row.append(icon, content);
+  row.append(iconContainer, content);
   return [row, value, range];
 }
 
@@ -143,22 +174,18 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   const header = element("header", "header");
   const dragHandle = element("button", "drag-handle");
   dragHandle.type = "button";
-  dragHandle.setAttribute("aria-label", "Déplacer ecoIA");
-  dragHandle.append(element("span", "mark", "e"), element("span", "brand", "ecoIA"));
+  dragHandle.setAttribute(
+    "aria-label",
+    "Déplacer ecoIA. Utilisez les flèches pour ajuster sa position.",
+  );
+  dragHandle.append(createBrandMark(), element("span", "brand", "ecoIA"));
   const headerActions = element("div", "header-actions");
-  const themeButton = iconButton("Passer au thème sombre", "◐");
+  const themeButton = iconButton("Passer au thème sombre", "theme");
   themeButton.setAttribute("data-theme-toggle", "");
-  const collapseButton = iconButton("Replier ecoIA", "⌄");
+  const collapseButton = iconButton("Replier ecoIA", "collapse");
   collapseButton.setAttribute("data-collapse", "");
   headerActions.append(themeButton, collapseButton);
   header.append(dragHandle, headerActions);
-
-  const anchorActions = element("div", "anchor-actions");
-  const anchorLeftButton = iconButton("Ancrer ecoIA à gauche", "←");
-  anchorLeftButton.setAttribute("data-anchor-left", "");
-  const anchorRightButton = iconButton("Ancrer ecoIA à droite", "→");
-  anchorRightButton.setAttribute("data-anchor-right", "");
-  anchorActions.append(anchorLeftButton, anchorRightButton);
 
   const body = element("div", "body");
   const statusRow = element("div", "status-row");
@@ -200,10 +227,10 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
 
   body.append(element("h2", "eyebrow", "Impact estimé"));
   const impactList = element("div", "impact-list");
-  const [waterRow, water, waterRange] = impactRow("●", "Eau", "data-water", "data-water-range");
-  const [carRow, car, carRange] = impactRow("↔", "Voiture", "data-car", "data-car-range");
+  const [waterRow, water, waterRange] = impactRow("water", "Eau", "data-water", "data-water-range");
+  const [carRow, car, carRange] = impactRow("car", "Voiture", "data-car", "data-car-range");
   const [televisionRow, television, televisionRange] = impactRow(
-    "▣",
+    "television",
     "Téléviseur 100 W",
     "data-television",
     "data-television-range",
@@ -296,11 +323,12 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   details.append(detailsGrid);
   body.append(details);
 
-  region.append(header, anchorActions, body);
-  const expandButton = element("button", "collapsed-button", "e");
+  region.append(header, body);
+  const expandButton = element("button", "collapsed-button");
   expandButton.type = "button";
   expandButton.setAttribute("data-expand", "");
   expandButton.setAttribute("aria-label", "Ouvrir ecoIA");
+  expandButton.append(createBrandMark());
   const live = element("div", "live");
   live.setAttribute("data-live", "");
   live.setAttribute("aria-live", "polite");
@@ -312,8 +340,6 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
     expandButton,
     collapseButton,
     themeButton,
-    anchorLeftButton,
-    anchorRightButton,
     dragHandle,
     status,
     model,

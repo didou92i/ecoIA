@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { deflateRawSync } from "node:zlib";
 
 const ZIP_LOCAL_FILE_HEADER = 0x04034b50;
 const ZIP_CENTRAL_DIRECTORY_HEADER = 0x02014b50;
@@ -22,33 +23,33 @@ function crc32(content) {
   return (value ^ 0xffffffff) >>> 0;
 }
 
-function createLocalHeader(fileName, content, checksum) {
+function createLocalHeader(fileName, content, payload, checksum, compressionMethod) {
   const header = Buffer.alloc(30);
   header.writeUInt32LE(ZIP_LOCAL_FILE_HEADER, 0);
   header.writeUInt16LE(20, 4);
   header.writeUInt16LE(0x0800, 6);
-  header.writeUInt16LE(0, 8);
+  header.writeUInt16LE(compressionMethod, 8);
   header.writeUInt16LE(0, 10);
   header.writeUInt16LE(0x0021, 12);
   header.writeUInt32LE(checksum, 14);
-  header.writeUInt32LE(content.length, 18);
+  header.writeUInt32LE(payload.length, 18);
   header.writeUInt32LE(content.length, 22);
   header.writeUInt16LE(fileName.length, 26);
   header.writeUInt16LE(0, 28);
   return header;
 }
 
-function createCentralHeader(fileName, content, checksum, localOffset) {
+function createCentralHeader(fileName, content, payload, checksum, localOffset, compressionMethod) {
   const header = Buffer.alloc(46);
   header.writeUInt32LE(ZIP_CENTRAL_DIRECTORY_HEADER, 0);
   header.writeUInt16LE(20, 4);
   header.writeUInt16LE(20, 6);
   header.writeUInt16LE(0x0800, 8);
-  header.writeUInt16LE(0, 10);
+  header.writeUInt16LE(compressionMethod, 10);
   header.writeUInt16LE(0, 12);
   header.writeUInt16LE(0x0021, 14);
   header.writeUInt32LE(checksum, 16);
-  header.writeUInt32LE(content.length, 20);
+  header.writeUInt32LE(payload.length, 20);
   header.writeUInt32LE(content.length, 24);
   header.writeUInt16LE(fileName.length, 28);
   header.writeUInt16LE(0, 30);
@@ -69,13 +70,23 @@ export async function createZip(outputPath, entries) {
   for (const entry of orderedEntries) {
     const fileName = Buffer.from(entry.name.replaceAll(path.sep, "/"), "utf8");
     const content = Buffer.from(entry.content);
+    const compressed = deflateRawSync(content, { level: 9 });
+    const compressionMethod = compressed.length < content.length ? 8 : 0;
+    const payload = compressionMethod === 8 ? compressed : content;
     const checksum = crc32(content);
-    const localHeader = createLocalHeader(fileName, content, checksum);
-    const centralHeader = createCentralHeader(fileName, content, checksum, localOffset);
+    const localHeader = createLocalHeader(fileName, content, payload, checksum, compressionMethod);
+    const centralHeader = createCentralHeader(
+      fileName,
+      content,
+      payload,
+      checksum,
+      localOffset,
+      compressionMethod,
+    );
 
-    localParts.push(localHeader, fileName, content);
+    localParts.push(localHeader, fileName, payload);
     centralParts.push(centralHeader, fileName);
-    localOffset += localHeader.length + fileName.length + content.length;
+    localOffset += localHeader.length + fileName.length + payload.length;
   }
 
   const centralDirectory = Buffer.concat(centralParts);

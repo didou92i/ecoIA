@@ -7,34 +7,62 @@ export type WidgetSide = "left" | "right";
 
 export interface WidgetPreferences {
   theme: WidgetTheme;
-  side: WidgetSide;
   collapsed: boolean;
+  left: number;
   top: number;
 }
 
+export interface StoredWidgetPreferences extends Partial<WidgetPreferences> {
+  side?: WidgetSide;
+}
+
 interface WidgetControllerOptions {
-  preferences?: Partial<WidgetPreferences>;
+  preferences?: StoredWidgetPreferences;
   onPreferencesChange?: (preferences: WidgetPreferences) => void;
   onModelSelectionChange?: (profileId: string | null) => void;
 }
 
 const defaultPreferences: WidgetPreferences = {
   theme: "system",
-  side: "right",
   collapsed: false,
+  left: 12,
   top: 96,
 };
+const viewportMargin = 12;
+const collapsedWidgetSize = 36;
+const expandedWidgetWidth = 195;
+const expandedWidgetMaxHeight = 480;
+
+export function clampWidgetPosition(
+  left: number,
+  top: number,
+  viewportWidth: number,
+  viewportHeight: number,
+  renderedWidth: number,
+  renderedHeight: number,
+): { left: number; top: number } {
+  return {
+    left: Math.max(
+      viewportMargin,
+      Math.min(left, Math.max(viewportMargin, viewportWidth - renderedWidth - viewportMargin)),
+    ),
+    top: Math.max(
+      viewportMargin,
+      Math.min(top, Math.max(viewportMargin, viewportHeight - renderedHeight - viewportMargin)),
+    ),
+  };
+}
 
 export function clampWidgetTop(
   top: number,
   viewportHeight: number,
   collapsed: boolean,
-  renderedHeight = 540,
+  renderedHeight = expandedWidgetMaxHeight,
 ): number {
-  const minimum = 12;
+  const minimum = viewportMargin;
   const estimatedHeight = collapsed
-    ? 40
-    : Math.min(renderedHeight, Math.max(160, viewportHeight - 24));
+    ? collapsedWidgetSize
+    : Math.min(renderedHeight, Math.max(160, viewportHeight - viewportMargin * 2));
   return Math.max(minimum, Math.min(top, Math.max(minimum, viewportHeight - estimatedHeight - 12)));
 }
 
@@ -46,7 +74,13 @@ export class WidgetController {
   private lastValidSelectedProfileId: string | null = null;
   private modelOptionsSignature = "";
   private readonly cleanupCallbacks: Array<() => void> = [];
-  private dragState: { pointerId: number; offsetX: number; offsetY: number } | null = null;
+  private dragState: {
+    pointerId: number;
+    offsetX: number;
+    offsetY: number;
+    startLeft: number;
+    startTop: number;
+  } | null = null;
   private reclampFrame: number | null = null;
 
   constructor(
@@ -54,6 +88,7 @@ export class WidgetController {
     private readonly elements: WidgetElements,
     options: WidgetControllerOptions = {},
   ) {
+    this.preferences.left = this.defaultLeft("right");
     this.bindEvents();
     this.configure(options);
   }
@@ -64,7 +99,21 @@ export class WidgetController {
       this.onModelSelectionChange = options.onModelSelectionChange;
     }
     if (options.preferences) {
-      this.preferences = { ...this.preferences, ...options.preferences };
+      const preferences = options.preferences;
+      if (preferences.theme && ["light", "dark", "system"].includes(preferences.theme)) {
+        this.preferences.theme = preferences.theme;
+      }
+      if (typeof preferences.collapsed === "boolean") {
+        this.preferences.collapsed = preferences.collapsed;
+      }
+      if (typeof preferences.top === "number" && Number.isFinite(preferences.top)) {
+        this.preferences.top = preferences.top;
+      }
+      if (typeof preferences.left === "number" && Number.isFinite(preferences.left)) {
+        this.preferences.left = preferences.left;
+      } else if (preferences.side === "left" || preferences.side === "right") {
+        this.preferences.left = this.defaultLeft(preferences.side);
+      }
     }
     this.applyPreferences(false);
   }
@@ -140,8 +189,6 @@ export class WidgetController {
       this.scheduleReclamp();
       this.elements.collapseButton.focus();
     });
-    this.listen(this.elements.anchorLeftButton, "click", () => this.setSide("left"));
-    this.listen(this.elements.anchorRightButton, "click", () => this.setSide("right"));
     this.listen(this.elements.chooseModelButton, "click", () => {
       this.elements.details.open = true;
       this.elements.modelSelect.focus();
@@ -163,12 +210,17 @@ export class WidgetController {
     this.listen(this.elements.dragHandle, "pointerdown", (event) =>
       this.startDrag(event as PointerEvent),
     );
+    this.listen(this.elements.dragHandle, "keydown", (event) =>
+      this.moveWithKeyboard(event as KeyboardEvent),
+    );
     this.listen(window, "pointermove", (event) => this.moveDrag(event as PointerEvent));
     this.listen(window, "pointerup", (event) => this.finishDrag(event as PointerEvent));
     this.listen(window, "pointercancel", (event) => this.finishDrag(event as PointerEvent));
     this.listen(window, "resize", () => this.reclamp());
     this.listen(this.host, "keydown", (event) => {
       if ((event as KeyboardEvent).key === "Escape" && this.dragState) {
+        this.preferences.left = this.dragState.startLeft;
+        this.preferences.top = this.dragState.startTop;
         this.dragState = null;
         this.host.removeAttribute("data-dragging");
         this.applyPreferences(false);
@@ -181,14 +233,6 @@ export class WidgetController {
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
 
-  private setSide(side: WidgetSide): void {
-    this.preferences.side = side;
-    this.host.style.removeProperty("left");
-    this.host.style.removeProperty("right");
-    this.applyPreferences();
-    this.scheduleReclamp();
-  }
-
   private startDrag(event: PointerEvent): void {
     if (event.button !== 0) return;
     const rectangle = this.host.getBoundingClientRect();
@@ -196,6 +240,8 @@ export class WidgetController {
       pointerId: event.pointerId,
       offsetX: event.clientX - rectangle.left,
       offsetY: event.clientY - rectangle.top,
+      startLeft: this.preferences.left,
+      startTop: this.preferences.top,
     };
     this.host.setAttribute("data-dragging", "");
     this.elements.dragHandle.setPointerCapture?.(event.pointerId);
@@ -204,20 +250,18 @@ export class WidgetController {
 
   private moveDrag(event: PointerEvent): void {
     if (!this.dragState || event.pointerId !== this.dragState.pointerId) return;
-    const width = this.preferences.collapsed ? 40 : 232;
-    const left = Math.max(
-      12,
-      Math.min(event.clientX - this.dragState.offsetX, window.innerWidth - width - 12),
-    );
-    const top = clampWidgetTop(
+    const dimensions = this.renderedDimensions();
+    const position = clampWidgetPosition(
+      event.clientX - this.dragState.offsetX,
       event.clientY - this.dragState.offsetY,
+      window.innerWidth,
       window.innerHeight,
-      this.preferences.collapsed,
+      dimensions.width,
+      dimensions.height,
     );
-    this.host.style.left = `${left}px`;
-    this.host.style.right = "auto";
-    this.host.style.top = `${top}px`;
-    this.preferences.top = top;
+    this.preferences.left = position.left;
+    this.preferences.top = position.top;
+    this.renderPosition();
   }
 
   private finishDrag(event: PointerEvent): void {
@@ -225,22 +269,22 @@ export class WidgetController {
     this.elements.dragHandle.releasePointerCapture?.(event.pointerId);
     this.dragState = null;
     this.host.removeAttribute("data-dragging");
-    this.preferences.side = event.clientX < window.innerWidth / 2 ? "left" : "right";
-    this.host.style.removeProperty("left");
-    this.host.style.removeProperty("right");
     this.applyPreferences();
-    this.scheduleReclamp();
   }
 
   private reclamp(): void {
-    const renderedHeight = this.elements.panel.getBoundingClientRect().height;
-    this.preferences.top = clampWidgetTop(
+    const dimensions = this.renderedDimensions();
+    const position = clampWidgetPosition(
+      this.preferences.left,
       this.preferences.top,
+      window.innerWidth,
       window.innerHeight,
-      this.preferences.collapsed,
-      renderedHeight > 0 ? renderedHeight : undefined,
+      dimensions.width,
+      dimensions.height,
     );
-    this.applyPreferences(false);
+    this.preferences.left = position.left;
+    this.preferences.top = position.top;
+    this.renderPosition();
   }
 
   private scheduleReclamp(): void {
@@ -252,20 +296,77 @@ export class WidgetController {
   }
 
   private applyPreferences(notify = true): void {
-    this.preferences.top = clampWidgetTop(
-      this.preferences.top,
-      window.innerHeight,
-      this.preferences.collapsed,
-    );
     const resolvedTheme = this.resolveTheme();
     this.host.setAttribute("data-theme", resolvedTheme);
-    this.host.setAttribute("data-side", this.preferences.side);
+    this.host.removeAttribute("data-side");
     this.host.toggleAttribute("collapsed", this.preferences.collapsed);
-    this.host.style.top = `${this.preferences.top}px`;
+    const dimensions = this.renderedDimensions();
+    const position = clampWidgetPosition(
+      this.preferences.left,
+      this.preferences.top,
+      window.innerWidth,
+      window.innerHeight,
+      dimensions.width,
+      dimensions.height,
+    );
+    this.preferences.left = position.left;
+    this.preferences.top = position.top;
+    this.renderPosition();
     this.elements.themeButton.setAttribute(
       "aria-label",
       resolvedTheme === "dark" ? "Passer au thème clair" : "Passer au thème sombre",
     );
     if (notify) this.onPreferencesChange({ ...this.preferences });
+  }
+
+  private defaultLeft(side: WidgetSide): number {
+    if (side === "left") return viewportMargin;
+    const width = this.preferences.collapsed ? collapsedWidgetSize : expandedWidgetWidth;
+    return Math.max(viewportMargin, window.innerWidth - width - viewportMargin);
+  }
+
+  private renderedDimensions(): { width: number; height: number } {
+    if (this.preferences.collapsed) {
+      return { width: collapsedWidgetSize, height: collapsedWidgetSize };
+    }
+    const rectangle = this.elements.panel.getBoundingClientRect();
+    return {
+      width: rectangle.width > 0 ? rectangle.width : expandedWidgetWidth,
+      height:
+        rectangle.height > 0
+          ? rectangle.height
+          : Math.min(expandedWidgetMaxHeight, Math.max(0, window.innerHeight - viewportMargin * 2)),
+    };
+  }
+
+  private renderPosition(): void {
+    this.host.style.left = `${this.preferences.left}px`;
+    this.host.style.right = "auto";
+    this.host.style.top = `${this.preferences.top}px`;
+  }
+
+  private moveWithKeyboard(event: KeyboardEvent): void {
+    const directions: Record<string, { left: number; top: number }> = {
+      ArrowLeft: { left: -1, top: 0 },
+      ArrowRight: { left: 1, top: 0 },
+      ArrowUp: { left: 0, top: -1 },
+      ArrowDown: { left: 0, top: 1 },
+    };
+    const direction = directions[event.key];
+    if (!direction) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 1 : 10;
+    const dimensions = this.renderedDimensions();
+    const position = clampWidgetPosition(
+      this.preferences.left + direction.left * step,
+      this.preferences.top + direction.top * step,
+      window.innerWidth,
+      window.innerHeight,
+      dimensions.width,
+      dimensions.height,
+    );
+    this.preferences.left = position.left;
+    this.preferences.top = position.top;
+    this.applyPreferences();
   }
 }

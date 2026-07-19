@@ -14,7 +14,7 @@ ecoIA est une extension de navigateur open source qui transforme l’usage visib
 en repères environnementaux simples : eau, électricité, carbone, durée équivalente d’un téléviseur
 de 100 W et distance équivalente en voiture.
 
-Le petit panneau se déplace à gauche ou à droite, se replie en un bouton de 40 px et propose un
+Le petit panneau se place librement dans la fenêtre, se replie en un bouton de 36 px et propose un
 thème clair, sombre ou système. Tout le calcul est local. ecoIA n’est pas un compteur physique : il
 met en avant une estimation centrale, puis écrit la plage possible en toutes lettres avec un niveau
 de confiance et une source.
@@ -100,9 +100,16 @@ d’être invalidé.
 ## Utiliser ecoIA
 
 Ouvrez une plateforme prise en charge puis une conversation textuelle. Le panneau apparaît à droite.
-Vous pouvez le déplacer, l’ancrer avec les flèches, le replier ou changer de thème. Un clic sur
+Faites glisser la zone du logo TerritorIA et du nom « ecoIA » pour le placer où vous le souhaitez.
+Lorsque cette zone possède le focus, les flèches du clavier le déplacent de 10 px et `Maj` avec une
+flèche permet un ajustement fin de 1 px. Vous pouvez aussi le replier ou changer de thème. Un clic sur
 l’icône ecoIA dans la barre du navigateur ouvre ou replie aussi le panneau sur une page prise en
 charge.
+
+Chrome mémorise le niveau de zoom séparément pour chaque site. Le panneau conserve toujours une
+largeur CSS de 195 px, mais il peut donc sembler plus grand sur une plateforme réglée à 100 % que sur
+une autre réglée à 75 %. Pour comparer les plateformes à taille visuelle identique, ouvrez chacune
+d’elles et utilisez `⌘ 0` sur macOS ou `Ctrl 0` sur Windows et Linux afin de rétablir le même zoom.
 
 1. Laissez « Détection automatique » lorsque le panneau reconnaît le modèle affiché par la
    plateforme. ecoIA applique alors le profil documenté correspondant lorsqu’il existe, notamment

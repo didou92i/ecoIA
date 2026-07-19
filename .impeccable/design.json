@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-19T19:13:39Z",
+  "title": "Design System: ecoIA",
+  "extensions": {
+    "colorMeta": {
+      "surface": {
+        "role": "neutral",
+        "displayName": "Papier minéral",
+        "canonical": "oklch(97.5% 0.008 175)",
+        "tonalRamp": [
+          "oklch(15% 0.008 175)",
+          "oklch(25% 0.008 175)",
+          "oklch(38% 0.008 175)",
+          "oklch(52% 0.008 175)",
+          "oklch(66% 0.008 175)",
+          "oklch(78% 0.008 175)",
+          "oklch(89% 0.008 175)",
+          "oklch(97.5% 0.008 175)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Vert de mesure",
+        "canonical": "oklch(50% 0.095 178)",
+        "tonalRamp": [
+          "oklch(15% 0.04 178)",
+          "oklch(25% 0.06 178)",
+          "oklch(38% 0.08 178)",
+          "oklch(50% 0.095 178)",
+          "oklch(62% 0.09 178)",
+          "oklch(74% 0.07 178)",
+          "oklch(86% 0.045 178)",
+          "oklch(95% 0.02 178)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "title": {
+        "displayName": "Titre compact",
+        "purpose": "Marque et valeurs d'impact principales."
+      },
+      "body": {
+        "displayName": "Lecture native",
+        "purpose": "États, modèles et explications sans police distante."
+      }
+    },
+    "shadows": [
+      {
+        "name": "panel-ambient",
+        "value": "0 14px 42px rgb(10 39 34 / 18%)",
+        "purpose": "Séparer le widget de la page sans ombrer ses contenus internes."
+      }
+    ],
+    "effects": [
+      {
+        "name": "panel-translucency",
+        "value": "light panel 72%, light data 88%, dark panel 90%, backdrop blur 16px",
+        "purpose": "Rendre la superposition sur la conversation perceptible sans affaiblir les données."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-out-expo",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Transitions d'état et apparition du parcours d'impact."
+      },
+      {
+        "name": "duration-feedback",
+        "value": "160ms",
+        "purpose": "Survol, pression et focus des contrôles."
+      },
+      {
+        "name": "duration-measurement",
+        "value": "720ms",
+        "purpose": "Confirmation unique d'une réponse terminée."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow-browser",
+        "value": "320px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Header Control",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Contrôle compact de thème ou de repli.",
+      "html": "<button class=\"ds-header-control\" aria-label=\"Changer le thème\">◐</button>",
+      "css": ".ds-header-control { width: 28px; height: 28px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: oklch(46% 0.025 175); transition: background-color 160ms cubic-bezier(0.16, 1, 0.3, 1); } .ds-header-control:hover { background: oklch(94% 0.014 175); } .ds-header-control:focus-visible { outline: 2px solid oklch(55% 0.18 255); outline-offset: 2px; }"
+    },
+    {
+      "name": "Token Ledger",
+      "kind": "card",
+      "description": "Deux estimations partagent une même surface et un séparateur central.",
+      "html": "<div class=\"ds-token-ledger\"><span>Entrée<br><strong>≈ 24 tokens</strong></span><span>Sortie<br><strong>≈ 120 tokens</strong></span></div>",
+      "css": ".ds-token-ledger { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid oklch(84% 0.018 175); border-radius: 14px; background: oklch(99.2% 0.004 175); } .ds-token-ledger > span { padding: 8px 10px; color: oklch(46% 0.025 175); font: 10px -apple-system, sans-serif; } .ds-token-ledger > span + span { border-left: 1px solid oklch(84% 0.018 175); } .ds-token-ledger strong { color: oklch(22% 0.02 175); font-size: 12px; }"
+    },
+    {
+      "name": "Impact Trail",
+      "kind": "custom",
+      "refersTo": "impact-trail",
+      "description": "Parcours vertical commun aux équivalences eau, voiture et télévision.",
+      "html": "<div class=\"ds-impact-trail\"><span class=\"ds-impact-node\">1</span><p>Eau<br><strong>≈ 2 ml</strong></p><span class=\"ds-impact-node\">2</span><p>Voiture<br><strong>≈ 1 m</strong></p></div>",
+      "css": ".ds-impact-trail { display: grid; grid-template-columns: 28px 1fr; gap: 8px; padding: 8px 10px; border: 1px solid oklch(84% 0.018 175); border-radius: 14px; background: oklch(99.2% 0.004 175); } .ds-impact-node { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: oklch(93% 0.035 175); color: oklch(50% 0.095 178); } .ds-impact-trail p { margin: 0; color: oklch(46% 0.025 175); font: 10px -apple-system, sans-serif; } .ds-impact-trail strong { color: oklch(22% 0.02 175); font-size: 14px; }"
+    },
+    {
+      "name": "Summary Ledger",
+      "kind": "card",
+      "description": "Totaux de session et du jour dans un registre compact commun.",
+      "html": "<div class=\"ds-summary-ledger\"><span>Session<br><strong>3 interactions</strong></span><span>Aujourd'hui<br><strong>≈ 6 ml</strong></span></div>",
+      "css": ".ds-summary-ledger { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid oklch(84% 0.018 175); border-bottom: 1px solid oklch(84% 0.018 175); } .ds-summary-ledger > span { padding: 8px 4px; color: oklch(46% 0.025 175); font: 10px -apple-system, sans-serif; } .ds-summary-ledger > span + span { padding-left: 10px; border-left: 1px solid oklch(84% 0.018 175); } .ds-summary-ledger strong { color: oklch(22% 0.02 175); font-size: 11px; }"
+    },
+    {
+      "name": "Model Select",
+      "kind": "input",
+      "description": "Sélecteur natif explicite dans la divulgation progressive.",
+      "html": "<label class=\"ds-model-label\">Modèle appliqué<select class=\"ds-model-select\"><option>Détection automatique</option></select></label>",
+      "css": ".ds-model-label { display: grid; gap: 4px; color: oklch(22% 0.02 175); font: 700 11px -apple-system, sans-serif; } .ds-model-select { min-height: 34px; padding: 5px 8px; border: 1px solid oklch(84% 0.018 175); border-radius: 10px; background: oklch(99.2% 0.004 175); color: oklch(22% 0.02 175); } .ds-model-select:focus-visible { outline: 2px solid oklch(55% 0.18 255); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Le Fil d'impact",
+    "overview": "ecoIA est un instrument de lecture calme. Une ligne relie les équivalences, une lueur courte confirme une nouvelle mesure, puis l'interface redevient silencieuse.",
+    "keyCharacteristics": [
+      "Colonne unique de 195 px",
+      "Accent végétal rare",
+      "Parcours d'impact relié",
+      "Mouvement fonctionnel seulement",
+      "Divulgation progressive"
+    ],
+    "rules": [
+      {
+        "name": "The Rare Accent Rule",
+        "body": "L'accent reste sous 10 % de la surface et signifie toujours un état, une mesure ou une action.",
+        "section": "colors"
+      },
+      {
+        "name": "The Numeric Calm Rule",
+        "body": "Les nombres utilisent des chiffres tabulaires et ne changent jamais de taille pendant une réponse en cours.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Shadow Rule",
+        "body": "Une seule ombre structurelle est autorisée, celle du panneau flottant.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do conserver une lecture complète à 320 px et une largeur nominale de 195 px.",
+      "Do utiliser uniquement des pictogrammes SVG intégrés, une police système et des animations CSS.",
+      "Do maintenir les valeurs centrales, les plages et la qualité des données comme informations distinctes."
+    ],
+    "donts": [
+      "Don't créer des tableaux de bord envahissants ou des cartes imbriquées.",
+      "Don't utiliser les interfaces IA violettes et néon génériques, les effets de verre décoratifs ou les lueurs permanentes.",
+      "Don't ajouter des animations gratuites, des dépendances lourdes ou des contrôles non standards."
+    ]
+  }
+}
