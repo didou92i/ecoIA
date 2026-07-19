@@ -198,6 +198,23 @@ describe("content controller", () => {
     expect(adapter.cleanup).toHaveBeenCalledOnce();
   });
 
+  it("unsubscribes when the extension API is invalidated without a conversation change", async () => {
+    const { adapter, api, controller, updates } = createHarness();
+    await controller.start();
+    api.runtime.sendMessage = vi.fn(async () => {
+      throw new Error("Extension context invalidated.");
+    });
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      responseText: "Une réponse mise à jour sans changement de conversation.",
+    };
+
+    await expect(controller.refresh()).resolves.toBeUndefined();
+
+    expect(updates.at(-1)?.state).toBe("measurement-paused");
+    expect(adapter.cleanup).toHaveBeenCalledOnce();
+  });
+
   it("cleans up observers and the injected widget", async () => {
     const { adapter, controller, widget } = createHarness();
     await controller.start();

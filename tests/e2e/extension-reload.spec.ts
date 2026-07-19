@@ -14,10 +14,8 @@ test("suspend proprement l'ancien script après le rechargement de l'extension",
   });
   await extensionPage.waitForTimeout(500);
   await extensionPage.evaluate(() => {
-    const conversation = document.querySelector<HTMLElement>("[data-conversation-id]");
     const answer = document.querySelector<HTMLElement>("[data-answer]");
-    if (!conversation || !answer) throw new Error("E2E_CONVERSATION_FIXTURE_MISSING");
-    conversation.dataset.conversationId = "synthetic-conversation-after-reload";
+    if (!answer) throw new Error("E2E_ANSWER_FIXTURE_MISSING");
     answer.textContent += " Mise à jour après rechargement.";
   });
 

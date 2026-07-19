@@ -296,16 +296,10 @@ export class ContentController {
         this.viewModel = { ...this.viewModel, session: response.session, day: response.day };
         widget.update(this.viewModel);
       }
-    } catch {
+    } catch (error) {
       snapshot.promptText = "";
       snapshot.responseText = "";
-      this.viewModel = {
-        ...this.viewModel,
-        model,
-        state: "measurement-paused",
-        current: emptyViewModel(this.adapter.platform).current,
-      };
-      widget.update(this.viewModel);
+      throw error;
     }
   }
 }

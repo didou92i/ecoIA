@@ -207,4 +207,28 @@ describe("ecoIA widget", () => {
       "≈ 400 tokens",
     );
   });
+
+  it("throttles streaming updates after a render at time zero", () => {
+    vi.useFakeTimers();
+    const now = vi.spyOn(performance, "now").mockReturnValue(0);
+    const widget = createWidget();
+    widget.update({ ...viewModel, state: "streaming" });
+
+    now.mockReturnValue(500);
+    widget.update({
+      ...viewModel,
+      state: "streaming",
+      current: {
+        ...viewModel.current,
+        tokens: {
+          ...viewModel.current.tokens,
+          output: createRange(380, 400, 420),
+        },
+      },
+    });
+
+    expect(widget.shadowRoot?.querySelector("[data-output-tokens]")?.textContent).toBe(
+      "≈ 200 tokens",
+    );
+  });
 });

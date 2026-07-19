@@ -72,7 +72,7 @@ class EcoIaWidgetRuntime {
   private controller: WidgetController | null = null;
   private configuration: WidgetConfiguration = {};
   private previousState: WidgetMeasurementState = "initializing";
-  private lastRenderAt = 0;
+  private lastRenderAt: number | null = null;
   private pendingRender: number | null = null;
   private pendingViewModel: WidgetViewModel | null = null;
 
@@ -111,8 +111,9 @@ class EcoIaWidgetRuntime {
 
   update(viewModel: WidgetViewModel): void {
     const now = performance.now();
-    const remainingDelay = streamingRenderIntervalMs - (now - this.lastRenderAt);
-    if (viewModel.state === "streaming" && this.lastRenderAt > 0 && remainingDelay > 0) {
+    const remainingDelay =
+      this.lastRenderAt === null ? 0 : streamingRenderIntervalMs - (now - this.lastRenderAt);
+    if (viewModel.state === "streaming" && this.lastRenderAt !== null && remainingDelay > 0) {
       this.pendingViewModel = viewModel;
       if (this.pendingRender === null) {
         this.pendingRender = window.setTimeout(() => {
