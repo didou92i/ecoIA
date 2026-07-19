@@ -24,6 +24,7 @@ interface MutableProfile {
 interface MutableRegistry {
   sources: MutableSource[];
   profiles: MutableProfile[];
+  platformFallbacks: Record<string, string>;
 }
 
 function requireFirst<T>(items: T[]): T {
@@ -65,6 +66,13 @@ describe("impact profile registry", () => {
       expect(fallback.indicators.carbonG.confidence).toBe("D");
     }
     expect(impactRegistry.platformFallbacks.gemini).toBe("google-generic-v1");
+  });
+
+  it("rejects a grade-D fallback assigned to another platform", () => {
+    const copy = structuredClone(rawRegistry) as unknown as MutableRegistry;
+    copy.platformFallbacks.chatgpt = "anthropic-generic-v1";
+
+    expect(() => validateImpactRegistry(copy)).toThrow("INVALID_IMPACT_REGISTRY");
   });
 
   it.each<[string, (copy: MutableRegistry) => void]>([

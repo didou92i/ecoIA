@@ -182,7 +182,7 @@ export function validateImpactRegistry(value: unknown): ImpactRegistry {
     if (!isIdentifier(fallbackId) || !profileIds.has(fallbackId)) invalidRegistry();
     const fallback = profiles.find((profile) => profile.id === fallbackId);
     if (
-      !fallback ||
+      !fallback?.platforms.includes(platform) ||
       indicatorKeys.some((indicator) => fallback.indicators[indicator].confidence !== "D")
     ) {
       invalidRegistry();
