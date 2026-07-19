@@ -19,6 +19,7 @@ import { conversationChanged, createEphemeralSessionId } from "./page-lifecycle"
 
 const preferencesStorageKey = "ecoia.preferences.v1";
 const dayStorageKey = "ecoia.day.v1";
+const maximumObservedRootAncestors = 32;
 
 interface TurnState {
   eventId: string;
@@ -198,6 +199,7 @@ export class ContentController {
   private widget: ContentWidget | null = null;
   private unsubscribeAdapter: (() => void) | null = null;
   private unsubscribeRuntime: (() => void) | null = null;
+  private rootLifecycleObserver: MutationObserver | null = null;
   private observedRoot: HTMLElement | null = null;
   private tabSessionId: string;
   private conversationMarker: string | null = null;
@@ -261,6 +263,7 @@ export class ContentController {
     });
     const root = this.adapter.findConversationRoot(this.document);
     if (!root) {
+      this.watchForRootAvailability();
       this.pauseMeasurement();
       return;
     }
@@ -279,6 +282,7 @@ export class ContentController {
   private pauseAfterRefreshFailure(): void {
     this.unsubscribeAdapter?.();
     this.unsubscribeAdapter = null;
+    this.disconnectRootLifecycleObserver();
     this.observedRoot = null;
     this.pauseMeasurement();
   }
@@ -303,6 +307,7 @@ export class ContentController {
     this.unsubscribeAdapter = null;
     this.unsubscribeRuntime?.();
     this.unsubscribeRuntime = null;
+    this.disconnectRootLifecycleObserver();
     this.observedRoot = null;
     this.widget?.disconnectEcoIaWidget?.();
     this.widget?.remove();
@@ -314,6 +319,48 @@ export class ContentController {
     this.unsubscribeAdapter?.();
     this.observedRoot = root;
     this.unsubscribeAdapter = this.adapter.subscribe(root, () => void this.refresh());
+    this.watchRootPresence(root);
+  }
+
+  private disconnectRootLifecycleObserver(): void {
+    this.rootLifecycleObserver?.disconnect();
+    this.rootLifecycleObserver = null;
+  }
+
+  private watchForRootAvailability(): void {
+    this.disconnectRootLifecycleObserver();
+    const Observer = this.document.defaultView?.MutationObserver;
+    const target = this.document.documentElement;
+    if (!Observer || !target) return;
+    const observer = new Observer(() => {
+      if (this.rootLifecycleObserver !== observer || !this.widget) return;
+      if (!this.adapter.findConversationRoot(this.document)) return;
+      this.disconnectRootLifecycleObserver();
+      void this.refresh();
+    });
+    this.rootLifecycleObserver = observer;
+    observer.observe(target, { childList: true, subtree: true });
+  }
+
+  private watchRootPresence(root: HTMLElement): void {
+    this.disconnectRootLifecycleObserver();
+    const Observer = this.document.defaultView?.MutationObserver;
+    if (!Observer || !root.parentNode) return;
+    const observer = new Observer(() => {
+      if (this.rootLifecycleObserver !== observer || !this.widget) return;
+      if (root.isConnected && this.adapter.findConversationRoot(this.document) === root) return;
+      this.disconnectRootLifecycleObserver();
+      void this.refresh();
+    });
+    this.rootLifecycleObserver = observer;
+    let ancestor: Node | null = root.parentNode;
+    let observedAncestors = 0;
+    while (ancestor && observedAncestors < maximumObservedRootAncestors) {
+      observer.observe(ancestor, { childList: true });
+      observedAncestors += 1;
+      if (ancestor === this.document.documentElement) break;
+      ancestor = ancestor.parentNode;
+    }
   }
 
   private async resetConversation(
@@ -367,6 +414,7 @@ export class ContentController {
       this.unsubscribeAdapter?.();
       this.unsubscribeAdapter = null;
       this.observedRoot = null;
+      this.watchForRootAvailability();
       this.pauseMeasurement();
       return;
     }
@@ -388,8 +436,7 @@ export class ContentController {
     });
     const snapshot = this.adapter.readLatestTurn(root);
     if (!snapshot) {
-      if (this.baselinePending?.reason === "initial") this.baselinePending = null;
-      else if (this.baselinePending) this.baselinePending.observedEmpty = true;
+      if (this.baselinePending) this.baselinePending.observedEmpty = true;
       this.viewModel = {
         ...this.viewModel,
         state: "active",
@@ -420,11 +467,7 @@ export class ContentController {
       ) {
         return true;
       }
-      if (
-        pending.reason === "conversation-change" &&
-        pending.observedEmpty &&
-        snapshot.phase === "streaming"
-      ) {
+      if (pending.observedEmpty && snapshot.phase === "streaming") {
         this.baselinePending = null;
         this.baselineTurn = null;
         return false;
@@ -553,6 +596,7 @@ export class ContentController {
         directState ??
         (replacementState &&
         (replacementState.phase === "streaming" ||
+          snapshot.phase !== "streaming" ||
           replacementState.pendingSignature === signature ||
           replacementState.acknowledgedSignature === signature)
           ? replacementState

@@ -15,6 +15,11 @@ proposer une borne haute possible. Ce parcours remonte depuis le tour courant et
 4 096 nœuds DOM visités ou 2 097 152 octets UTF-8. Atteindre l’une de ces bornes produit un contexte
 partiel et évite qu’une page très fragmentée impose un travail sans limite.
 
+La lecture textuelle et les calculs restent limités à la racine de conversation. Si cette racine
+n’est pas encore présente ou vient d’être remplacée, un observateur structurel temporaire surveille
+uniquement l’ajout de nœuds et la présence de ses ancêtres ; il ne lit aucun texte hors conversation
+et se resserre sur la nouvelle racine dès qu’elle est trouvée.
+
 Les totaux commencent à partir de l’activation d’ecoIA dans la page. Le dernier tour déjà visible au
 démarrage, au rechargement ou juste après un changement de conversation sert de baseline, même si sa
 réponse est encore en cours. Ce tour reste affiché mais n’est jamais agrégé : ses mutations, sa suite

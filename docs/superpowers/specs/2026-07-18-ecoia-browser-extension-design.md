@@ -316,7 +316,8 @@ Budgets de la V1 :
 - paquet compressé inférieur à 150 Ko, icônes incluses ;
 - aucune dépendance JavaScript d’exécution ;
 - au maximum deux rafraîchissements visuels par seconde pendant le streaming ;
-- observation DOM limitée au conteneur de conversation ;
+- lecture et calculs DOM limités au conteneur de conversation ; observateur structurel temporaire
+  limité à la découverte ou au remplacement de cette racine ;
 - aucun parcours complet du document à chaque mutation ;
 - données locales bornées à la session et au jour courant ;
 - arrêt propre de tous les observateurs et écouteurs lors d’une navigation ou désactivation.

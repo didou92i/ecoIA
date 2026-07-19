@@ -712,6 +712,38 @@ describe("content controller", () => {
     harness.cleanupWorker();
   });
 
+  it("keeps one interaction when a replaced terminal turn gains visible post-processing", async () => {
+    const adapter = new FakeAdapter();
+    const harness = createIntegratedHarness(adapter);
+    await harness.controller.start();
+    adapter.snapshot = {
+      ...requireSnapshot(adapter),
+      responseText: "Réponse terminée avant enrichissement.",
+      phase: "completed",
+    };
+    await harness.controller.refresh();
+
+    const enrichedTurn = document.createElement("article");
+    adapter.root.replaceChildren(enrichedTurn);
+    adapter.snapshot = {
+      turnElement: enrichedTurn,
+      promptText: "Texte privé du prompt",
+      responseText: "Réponse terminée avant enrichissement. Citation visible ajoutée ensuite.",
+      phase: "completed",
+    };
+    await harness.controller.refresh();
+    await harness.controller.refresh();
+
+    const sent = numericMessages(harness.messages) as Array<{ eventId: string }>;
+    expect(new Set(sent.map(({ eventId }) => eventId)).size).toBe(1);
+    expect(harness.updates.at(-1)).toMatchObject({
+      session: { interactionCount: 1 },
+      day: { interactionCount: 1 },
+    });
+    harness.controller.stop();
+    harness.cleanupWorker();
+  });
+
   it("counts a new streaming turn that replaces a pre-existing terminal baseline", async () => {
     const adapter = new FakeAdapter();
     adapter.snapshot = { ...requireSnapshot(adapter), phase: "completed" };
@@ -957,6 +989,36 @@ describe("content controller", () => {
     expect(numericMessages(messages)).toHaveLength(sentBeforeNavigation + 1);
   });
 
+  it("keeps a completed history loaded after an initially empty root as the baseline", async () => {
+    const adapter = new FakeAdapter();
+    adapter.snapshot = null;
+    const { controller, messages } = createHarness(adapter);
+    await controller.start();
+
+    const delayedHistory = document.createElement("article");
+    adapter.root.append(delayedHistory);
+    adapter.snapshot = {
+      turnElement: delayedHistory,
+      promptText: "Prompt historique chargé tardivement.",
+      responseText: "Réponse historique déjà terminée.",
+      phase: "completed",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(0);
+
+    const firstActiveTurn = document.createElement("article");
+    adapter.root.append(firstActiveTurn);
+    adapter.snapshot = {
+      turnElement: firstActiveTurn,
+      promptText: "Premier prompt réellement actif.",
+      responseText: "Première réponse active en cours.",
+      phase: "streaming",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(1);
+    controller.stop();
+  });
+
   it("counts the first streaming turn created after a confirmed empty SPA transition", async () => {
     const adapter = new FakeAdapter();
     const harness = createIntegratedHarness(adapter);
@@ -1015,17 +1077,21 @@ describe("content controller", () => {
     };
     await controller.refresh();
     expect(numericMessages(messages)).toHaveLength(1);
+    controller.stop();
   });
 
-  it("baselines a pre-existing turn when a slowly loaded root appears after start", async () => {
+  it("discovers a slowly loaded root and baselines its pre-existing turn automatically", async () => {
     const adapter = new FakeAdapter();
     adapter.rootAvailable = false;
     adapter.snapshot = { ...requireSnapshot(adapter), phase: "completed" };
-    const { controller, messages } = createHarness(adapter, [], { snapshotAlreadyPresent: true });
+    const { controller, messages, updates } = createHarness(adapter, [], {
+      snapshotAlreadyPresent: true,
+    });
     await controller.start();
 
     adapter.rootAvailable = true;
-    await controller.refresh();
+    document.body.append(adapter.root);
+    await vi.waitFor(() => expect(updates.at(-1)?.state).toBe("completed"));
     expect(numericMessages(messages)).toHaveLength(0);
 
     const nextTurn = document.createElement("article");
@@ -1038,6 +1104,7 @@ describe("content controller", () => {
     };
     await controller.refresh();
     expect(numericMessages(messages)).toHaveLength(1);
+    controller.stop();
   });
 
   it("clears the previous measurement when a changed SPA conversation has no turn", async () => {
@@ -1092,6 +1159,7 @@ describe("content controller", () => {
       context: "absent",
       response: "waiting",
     });
+    controller.stop();
   });
 
   it("fails closed when the extension API is invalidated during a DOM refresh", async () => {
@@ -1133,11 +1201,15 @@ describe("content controller", () => {
     expect(document.documentElement.contains(widget)).toBe(false);
   });
 
-  it("moves the scoped observer when a SPA replaces the conversation root", async () => {
-    const { adapter, controller } = createHarness();
+  it("moves the scoped observer automatically when a connected SPA root is replaced", async () => {
+    const adapter = new FakeAdapter();
+    document.body.append(adapter.root);
+    const { controller } = createHarness(adapter);
     await controller.start();
-    adapter.root = document.createElement("main");
-    await controller.refresh();
-    expect(adapter.cleanup).toHaveBeenCalledOnce();
+    const replacementRoot = document.createElement("main");
+    adapter.root = replacementRoot;
+    document.body.replaceChildren(replacementRoot);
+    await vi.waitFor(() => expect(adapter.cleanup).toHaveBeenCalledOnce());
+    controller.stop();
   });
 });
