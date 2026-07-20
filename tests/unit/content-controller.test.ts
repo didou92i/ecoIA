@@ -11,6 +11,10 @@ import type { BrowserApi, ExtensionStorageArea } from "../../src/browser/browser
 import { registerServiceWorker } from "../../src/background/service-worker";
 import { ContentController, type ContentWidget } from "../../src/content/content-controller";
 import { estimateImpact } from "../../src/impact/impact-engine";
+import {
+  createMeasurementConsent,
+  measurementConsentStorageKey,
+} from "../../src/privacy/measurement-consent";
 import type { DayAggregate } from "../../src/storage/storage-types";
 import { estimateVisibleTokens } from "../../src/token/token-estimator";
 import type { WidgetViewModel } from "../../src/widget/eco-widget";
@@ -118,11 +122,16 @@ function activateSnapshotAfterStart(controller: ContentController, adapter: Fake
 function createHarness(
   adapter = new FakeAdapter(),
   numericResponses: unknown[] = [],
-  options: { snapshotAlreadyPresent?: boolean } = {},
+  options: { snapshotAlreadyPresent?: boolean; consent?: unknown } = {},
 ) {
   const messages: unknown[] = [];
   let runtimeListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
   const local = new MemoryStorageArea();
+  if (!("consent" in options)) {
+    local.values[measurementConsentStorageKey] = createMeasurementConsent(true);
+  } else if (options.consent !== undefined) {
+    local.values[measurementConsentStorageKey] = structuredClone(options.consent);
+  }
   const session = new MemoryStorageArea();
   const api: BrowserApi = {
     runtime: {
@@ -177,6 +186,7 @@ function createIntegratedHarness(
   const messages: unknown[] = [];
   const updates: WidgetViewModel[] = [];
   const local = new MemoryStorageArea();
+  local.values[measurementConsentStorageKey] = createMeasurementConsent(true);
   const session = new MemoryStorageArea();
   let workerListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
   let toolbarListener: Parameters<BrowserApi["runtime"]["onMessage"]>[0] | null = null;
@@ -278,6 +288,15 @@ function modelSelectionCallback(widget: ContentWidget): (profileId: string | nul
   return configuration.onModelSelectionChange;
 }
 
+function consentCallback(widget: ContentWidget): (granted: boolean) => void | Promise<void> {
+  const configure = widget.configure as ReturnType<typeof vi.fn>;
+  const configuration = configure.mock.calls[0]?.[0] as
+    | { onConsentChange?: (granted: boolean) => void | Promise<void> }
+    | undefined;
+  if (!configuration?.onConsentChange) throw new Error("MISSING_CONSENT_CALLBACK");
+  return configuration.onConsentChange;
+}
+
 function numericMessages(messages: unknown[]): Array<Record<string, unknown>> {
   return messages.filter(
     (message): message is Record<string, unknown> =>
@@ -287,6 +306,86 @@ function numericMessages(messages: unknown[]): Array<Record<string, unknown>> {
 
 describe("content controller", () => {
   beforeEach(() => document.body.replaceChildren());
+
+  it("ne recherche ni ne lit la conversation avant un consentement explicite", async () => {
+    const adapter = new FakeAdapter();
+    const { controller, messages, updates, widget } = createHarness(adapter, [], {
+      consent: undefined,
+    });
+
+    await controller.start();
+
+    expect(adapter.findRootCallCount).toBe(0);
+    expect(adapter.lastTurnSnapshot).toBeNull();
+    expect(adapter.contextReadCount).toBe(0);
+    expect(adapter.subscribedListener).toBeNull();
+    expect(messages).toHaveLength(0);
+    expect(updates.at(-1)?.state).toBe("measurement-paused");
+    expect(widget.configure).toHaveBeenCalledWith(
+      expect.objectContaining({ consentGranted: false }),
+    );
+    controller.stop();
+  });
+
+  it("démarre après acceptation puis arrête immédiatement les nouvelles mesures après révocation", async () => {
+    const adapter = new FakeAdapter();
+    const { controller, local, messages, widget } = createHarness(adapter, [], {
+      consent: undefined,
+    });
+    await controller.start();
+
+    adapter.snapshot = { ...requireSnapshot(adapter), phase: "completed" };
+    await consentCallback(widget)(true);
+    expect(local.values[measurementConsentStorageKey]).toEqual(createMeasurementConsent(true));
+    expect(adapter.findRootCallCount).toBeGreaterThan(0);
+    expect(adapter.subscribedListener).not.toBeNull();
+    expect(numericMessages(messages)).toHaveLength(0);
+
+    const nextTurn = document.createElement("article");
+    adapter.root.append(nextTurn);
+    adapter.snapshot = {
+      turnElement: nextTurn,
+      promptText: "Question après consentement.",
+      responseText: "Réponse après consentement.",
+      phase: "completed",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(1);
+
+    await consentCallback(widget)(false);
+    expect(local.values[measurementConsentStorageKey]).toEqual(createMeasurementConsent(false));
+    expect(adapter.cleanup).toHaveBeenCalledOnce();
+    const sentBeforeRevokedRefresh = numericMessages(messages).length;
+    adapter.snapshot = {
+      ...adapter.snapshot,
+      responseText: "Cette mise à jour ne doit pas être lue.",
+    };
+    await controller.refresh();
+    expect(numericMessages(messages)).toHaveLength(sentBeforeRevokedRefresh);
+    controller.stop();
+  });
+
+  it("échoue fermé si le consentement est malformé ou si le stockage est indisponible", async () => {
+    const malformed = createHarness(new FakeAdapter(), [], {
+      consent: { version: 1, noticeVersion: 1, granted: true, text: "interdit" },
+    });
+    await malformed.controller.start();
+    expect(malformed.adapter.findRootCallCount).toBe(0);
+    expect(malformed.messages).toHaveLength(0);
+    malformed.controller.stop();
+
+    const unavailable = createHarness();
+    unavailable.local.get = vi.fn(async () => {
+      throw new Error("STORAGE_UNAVAILABLE");
+    });
+    await expect(unavailable.controller.start()).resolves.toBeUndefined();
+    expect(unavailable.adapter.findRootCallCount).toBe(0);
+    expect(unavailable.messages).toHaveLength(0);
+    expect(unavailable.widget.configure).toHaveBeenCalledWith(
+      expect.objectContaining({ consentGranted: false }),
+    );
+    unavailable.controller.stop();
+  });
 
   it("charge uniquement des coordonnées de widget finies", async () => {
     const valid = createHarness();
