@@ -218,4 +218,50 @@ describe("open-source documentation", () => {
     expect(workflow).toContain("npm run audit");
     expect(workflow).toContain("npm run secrets");
   });
+
+  it("ships copy-ready Chrome Web Store declarations that match the local-only architecture", async () => {
+    const [listing, privacyAnswers, testInstructions, checklist] = await Promise.all([
+      read("docs/chrome-web-store/listing-fr.md"),
+      read("docs/chrome-web-store/privacy-answers-fr.md"),
+      read("docs/chrome-web-store/test-instructions-fr.md"),
+      read("docs/chrome-web-store/submission-checklist.md"),
+    ]);
+    const combined = `${listing}\n${privacyAnswers}\n${testInstructions}\n${checklist}`;
+
+    for (const requiredText of [
+      "TerritorIA",
+      "ecoIA — Impact environnemental de l’IA",
+      "Productivité",
+      "https://github.com/didou92i/ecoIA/issues",
+      "https://github.com/didou92i/ecoIA/blob/main/PRIVACY.md",
+      "objectif unique",
+      "storage",
+      "Aucun code distant",
+      "aucune transmission",
+      "aucune vente",
+      "non répertoriée",
+      "publication différée",
+      "manifest.json",
+    ]) {
+      expect(combined).toContain(requiredText);
+    }
+    expect(listing).toMatch(/estimations? pédagogiques?[\s\S]*pas (?:une|des) mesure/iu);
+    expect(privacyAnswers).toMatch(/contenu (?:des? )?site[\s\S]*traitement local/iu);
+    expect(privacyAnswers).toMatch(
+      /permissions? d.hôte[\s\S]*six origines[\s\S]*cinq plateformes/iu,
+    );
+  });
+
+  it("generates the required Chrome Web Store promotional image and screenshots", async () => {
+    for (const [filename, width, height] of [
+      ["promo-440x280.png", 440, 280],
+      ["screenshot-consent-1280x800.png", 1280, 800],
+      ["screenshot-impact-1280x800.png", 1280, 800],
+    ] as const) {
+      const png = await readFile(path.join(projectRoot, "docs/chrome-web-store/assets", filename));
+      expect(png.subarray(1, 4).toString("ascii")).toBe("PNG");
+      expect(png.readUInt32BE(16)).toBe(width);
+      expect(png.readUInt32BE(20)).toBe(height);
+    }
+  });
 });

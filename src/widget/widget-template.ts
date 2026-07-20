@@ -6,6 +6,11 @@ export interface WidgetElements {
   collapseButton: HTMLButtonElement;
   themeButton: HTMLButtonElement;
   dragHandle: HTMLButtonElement;
+  consent: HTMLElement;
+  consentAcceptButton: HTMLButtonElement;
+  consentDeclineButton: HTMLButtonElement;
+  consentRevokeButton: HTMLButtonElement;
+  measurementBody: HTMLElement;
   status: HTMLElement;
   model: HTMLElement;
   modelWarning: HTMLElement;
@@ -187,7 +192,33 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   headerActions.append(themeButton, collapseButton);
   header.append(dragHandle, headerActions);
 
+  const consent = element("section", "consent");
+  consent.setAttribute("data-consent", "");
+  consent.setAttribute("aria-labelledby", "ecoia-consent-title");
+  const consentTitle = element("h2", "consent-title", "Mesurer en toute transparence");
+  consentTitle.id = "ecoia-consent-title";
+  const consentText = element(
+    "p",
+    "consent-text",
+    "ecoIA estime localement les tokens à partir du texte visible. Aucun texte n’est stocké ni transmis.",
+  );
+  const privacyLink = element("a", "privacy-link", "Lire la politique de confidentialité");
+  privacyLink.href = "https://github.com/didou92i/ecoIA/blob/main/PRIVACY.md";
+  privacyLink.target = "_blank";
+  privacyLink.rel = "noopener noreferrer";
+  privacyLink.setAttribute("data-privacy-link", "");
+  const consentActions = element("div", "consent-actions");
+  const consentAcceptButton = element("button", "consent-primary", "Activer ecoIA");
+  consentAcceptButton.type = "button";
+  consentAcceptButton.setAttribute("data-consent-accept", "");
+  const consentDeclineButton = element("button", "consent-secondary", "Pas maintenant");
+  consentDeclineButton.type = "button";
+  consentDeclineButton.setAttribute("data-consent-decline", "");
+  consentActions.append(consentAcceptButton, consentDeclineButton);
+  consent.append(consentTitle, consentText, privacyLink, consentActions);
+
   const body = element("div", "body");
+  body.setAttribute("data-measurement-body", "");
   const statusRow = element("div", "status-row");
   const statusDot = element("span", "status-dot");
   statusDot.setAttribute("aria-hidden", "true");
@@ -311,6 +342,13 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
   diagnostics.setAttribute("data-diagnostics", "");
   diagnosticSection.append(diagnostics);
 
+  const privacyControl = element("section", "privacy-control");
+  privacyControl.setAttribute("aria-label", "Confidentialité");
+  const consentRevokeButton = element("button", "consent-revoke", "Désactiver la mesure");
+  consentRevokeButton.type = "button";
+  consentRevokeButton.setAttribute("data-consent-revoke", "");
+  privacyControl.append(element("h3", "detail-heading", "Confidentialité"), consentRevokeButton);
+
   detailsGrid.append(
     modelControl,
     context,
@@ -319,11 +357,12 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
     carbonRow,
     qualitySection,
     diagnosticSection,
+    privacyControl,
   );
   details.append(detailsGrid);
   body.append(details);
 
-  region.append(header, body);
+  region.append(header, consent, body);
   const expandButton = element("button", "collapsed-button");
   expandButton.type = "button";
   expandButton.setAttribute("data-expand", "");
@@ -341,6 +380,11 @@ export function createWidgetTemplate(shadowRoot: ShadowRoot, styles: string): Wi
     collapseButton,
     themeButton,
     dragHandle,
+    consent,
+    consentAcceptButton,
+    consentDeclineButton,
+    consentRevokeButton,
+    measurementBody: body,
     status,
     model,
     modelWarning,

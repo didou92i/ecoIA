@@ -1,6 +1,6 @@
 {
   "name": "ecoia-browser-extension",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Extension locale et open source de sensibilisation à l’impact estimé des usages IA.",
   "private": true,
   "license": "MIT",
@@ -32,6 +32,7 @@
     "secrets": "node scripts/check-secrets.mjs",
     "impact-coefficients": "node scripts/derive-impact-coefficients.mjs --check",
     "source-freshness": "node scripts/check-source-freshness.mjs",
+    "store-assets": "npm run build:e2e && node scripts/generate-store-assets.mjs",
     "e2e": "npm run build:e2e && playwright test",
     "audit": "npm audit --audit-level=moderate",
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run impact-coefficients && npm run source-freshness && npm run build && npm run size"

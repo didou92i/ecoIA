@@ -7,6 +7,11 @@ import {
   resolveModelProfile,
   type ModelResolution,
 } from "../impact/model-selection";
+import {
+  createMeasurementConsent,
+  measurementConsentStorageKey,
+  parseMeasurementConsent,
+} from "../privacy/measurement-consent";
 import type { NumericInteractionEvent, PlatformId } from "../shared/contracts";
 import { createRange } from "../shared/range";
 import { isDayAggregate, isSessionAggregate } from "../storage/aggregate-store";
@@ -243,6 +248,7 @@ export class ContentController {
   };
   private baselineTurn: BaselineTurn | null = null;
   private lastObservedTurnElement: Element | null = null;
+  private measurementEnabled = false;
 
   constructor(options: ContentControllerOptions) {
     this.document = options.document;
@@ -259,21 +265,33 @@ export class ContentController {
   async start(): Promise<void> {
     if (this.widget) return;
     this.widget = this.createWidget();
-    const stored = await this.api.storage.local.get([preferencesStorageKey, dayStorageKey]);
+    let stored: Record<string, unknown> = {};
+    try {
+      stored = await this.api.storage.local.get([
+        preferencesStorageKey,
+        dayStorageKey,
+        measurementConsentStorageKey,
+      ]);
+    } catch {
+      stored = {};
+    }
     const preferences = stored[preferencesStorageKey];
     const storedDay = stored[dayStorageKey];
+    const consent = parseMeasurementConsent(stored[measurementConsentStorageKey]);
     const currentLocalDate = localCalendarDate(this.now());
     if (isDayAggregate(storedDay) && storedDay.localDate === currentLocalDate) {
       this.viewModel = { ...this.viewModel, day: storedDay };
     }
     this.widget.configure({
       ...(isStoredPreferences(preferences) ? { preferences } : {}),
+      consentGranted: consent?.granted === true,
       onPreferencesChange: (nextPreferences) => {
         void this.api.storage.local
           .set({ [preferencesStorageKey]: nextPreferences })
           .catch(() => undefined);
       },
       onModelSelectionChange: (profileId) => this.handleModelSelectionChange(profileId),
+      onConsentChange: (granted) => this.handleConsentChange(granted),
     });
     this.document.documentElement.append(this.widget);
     this.unsubscribeRuntime = this.api.runtime.onMessage((message, _sender, sendResponse) => {
@@ -289,6 +307,16 @@ export class ContentController {
       }
       return false;
     });
+    if (consent?.granted !== true) {
+      this.pauseMeasurement();
+      return;
+    }
+    this.measurementEnabled = true;
+    await this.startMeasurement();
+  }
+
+  private async startMeasurement(): Promise<void> {
+    if (!this.widget || !this.measurementEnabled) return;
     const root = this.adapter.findConversationRoot(this.document);
     if (!root) {
       this.watchForRootAvailability();
@@ -301,6 +329,10 @@ export class ContentController {
   }
 
   refresh(): Promise<void> {
+    if (!this.measurementEnabled) {
+      this.pauseMeasurement();
+      return Promise.resolve();
+    }
     this.refreshQueue = this.refreshQueue
       .then(() => this.refreshInternal())
       .catch(() => this.pauseAfterRefreshFailure());
@@ -330,7 +362,68 @@ export class ContentController {
     this.widget?.update(this.viewModel);
   }
 
+  private async handleConsentChange(granted: boolean): Promise<void> {
+    if (!granted) {
+      this.disableMeasurement();
+      this.widget?.configure({ consentGranted: false });
+      try {
+        await this.api.storage.local.set({
+          [measurementConsentStorageKey]: createMeasurementConsent(false),
+        });
+      } catch {
+        // Measurement is already disabled locally; persistence can safely fail closed.
+      }
+      return;
+    }
+
+    try {
+      await this.api.storage.local.set({
+        [measurementConsentStorageKey]: createMeasurementConsent(true),
+      });
+    } catch {
+      this.disableMeasurement();
+      this.widget?.configure({ consentGranted: false });
+      return;
+    }
+
+    if (this.measurementEnabled) {
+      this.widget?.configure({ consentGranted: true });
+      return;
+    }
+    this.prepareFreshBaseline();
+    this.measurementEnabled = true;
+    this.widget?.configure({ consentGranted: true });
+    await this.startMeasurement();
+  }
+
+  private disableMeasurement(): void {
+    this.measurementEnabled = false;
+    this.unsubscribeAdapter?.();
+    this.unsubscribeAdapter = null;
+    this.disconnectRootLifecycleObserver();
+    this.observedRoot = null;
+    this.prepareFreshBaseline();
+    this.pauseMeasurement();
+  }
+
+  private prepareFreshBaseline(): void {
+    this.manualProfileId = null;
+    this.selectionError = null;
+    this.contextEstimates = new WeakMap<Element, ContextTokenEstimate>();
+    this.turnStates = new WeakMap<Element, TurnState>();
+    this.conversationMarker = null;
+    this.baselinePending = {
+      reason: "initial",
+      previousTurnElement: null,
+      observedEmpty: false,
+      markerWhenEmpty: null,
+    };
+    this.baselineTurn = null;
+    this.lastObservedTurnElement = null;
+  }
+
   stop(): void {
+    this.measurementEnabled = false;
     this.unsubscribeAdapter?.();
     this.unsubscribeAdapter = null;
     this.unsubscribeRuntime?.();
@@ -365,13 +458,15 @@ export class ContentController {
     const target = this.document.documentElement;
     if (!Observer || !target) return;
     const observer = new Observer(() => {
-      if (this.rootLifecycleObserver !== observer || !this.widget) return;
+      if (this.rootLifecycleObserver !== observer || !this.widget || !this.measurementEnabled)
+        return;
       if (this.rootLifecycleTimer !== null) return;
       const window = this.document.defaultView;
       if (!window) return;
       this.rootLifecycleTimer = window.setTimeout(() => {
         this.rootLifecycleTimer = null;
-        if (this.rootLifecycleObserver !== observer || !this.widget) return;
+        if (this.rootLifecycleObserver !== observer || !this.widget || !this.measurementEnabled)
+          return;
         if (!this.adapter.findConversationRoot(this.document)) return;
         this.disconnectRootLifecycleObserver();
         void this.refresh();
@@ -446,6 +541,7 @@ export class ContentController {
   }
 
   private handleModelSelectionChange(profileId: string | null): void {
+    if (!this.measurementEnabled) return;
     const allowedProfileIds = new Set(
       getModelProfileOptions(this.adapter.platform).map((option) => option.id),
     );
@@ -465,7 +561,7 @@ export class ContentController {
 
   private async refreshInternal(): Promise<void> {
     const widget = this.widget;
-    if (!widget) return;
+    if (!widget || !this.measurementEnabled) return;
     const root = this.adapter.findConversationRoot(this.document);
     if (!root) {
       this.unsubscribeAdapter?.();
