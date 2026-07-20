@@ -1,6 +1,6 @@
 import type { BrowserContext, Page } from "@playwright/test";
 
-import { expect, test } from "./extension.fixture";
+import { expect, grantMeasurementConsent, test } from "./extension.fixture";
 
 function relativeLuminance(color: string): number {
   let linear: number[] | null = null;
@@ -51,6 +51,7 @@ async function openAccessiblePage(
   colorScheme: "light" | "dark" = "light",
   viewport = { width: 1280, height: 720 },
 ): Promise<Page> {
+  await grantMeasurementConsent(extensionContext);
   const page = await extensionContext.newPage();
   await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
   await page.setViewportSize(viewport);

@@ -1,12 +1,18 @@
 import type { BrowserContext, Page } from "@playwright/test";
 
-import { activateFixtureInteraction, expect, test } from "./extension.fixture";
+import {
+  activateFixtureInteraction,
+  expect,
+  grantMeasurementConsent,
+  test,
+} from "./extension.fixture";
 
 async function openFixturePage(
   extensionContext: BrowserContext,
   fixtureOrigin: string,
   path = "/",
 ): Promise<Page> {
+  await grantMeasurementConsent(extensionContext);
   const page = await extensionContext.newPage();
   const consoleErrors: string[] = [];
   const pageErrors: string[] = [];
