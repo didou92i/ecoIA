@@ -41,7 +41,7 @@
     "@biomejs/biome": "2.5.4",
     "@playwright/test": "1.61.1",
     "@types/chrome": "0.2.2",
-    "@types/node": "22.20.1",
+    "@types/node": "26.1.1",
     "esbuild": "0.28.1",
     "jsdom": "29.1.1",
     "typescript": "7.0.2",
