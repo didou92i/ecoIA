@@ -11,7 +11,7 @@ import {
   type EcoIaWidgetHost,
   type WidgetViewModel,
 } from "../../src/widget/eco-widget";
-import { clampWidgetTop } from "../../src/widget/widget-controller";
+import { clampWidgetPosition, clampWidgetTop } from "../../src/widget/widget-controller";
 
 const impactIndicator = {
   range: createRange(1, 2, 3),
@@ -159,6 +159,17 @@ describe("ecoIA widget", () => {
     expect(clampWidgetTop(96, 720, false, 696)).toBe(12);
   });
 
+  it("limite indépendamment la position libre sur les deux axes", () => {
+    expect(clampWidgetPosition(420, 300, 900, 700, 195, 480)).toEqual({
+      left: 420,
+      top: 208,
+    });
+    expect(clampWidgetPosition(-20, -30, 900, 700, 195, 480)).toEqual({
+      left: 12,
+      top: 12,
+    });
+  });
+
   it("works in a Chrome isolated world without a custom-elements registry", () => {
     vi.stubGlobal("customElements", null);
     const widget = createEcoWidget(document);
@@ -167,6 +178,17 @@ describe("ecoIA widget", () => {
     expect(widget.shadowRoot?.querySelector("[role='region']")).not.toBeNull();
     expect(() => widget.update(viewModel)).not.toThrow();
     widget.disconnectEcoIaWidget();
+  });
+
+  it("convertit les anciens ancrages en coordonnées horizontales", () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(900);
+    const widget = createWidget();
+
+    widget.configure({ preferences: { side: "left", top: 96 } });
+    expect(widget.style.left).toBe("12px");
+
+    widget.configure({ preferences: { side: "right", top: 96 } });
+    expect(widget.style.left).toBe("693px");
   });
 
   it("reclamps after details toggle on RAF and cancels a pending frame on disconnect", () => {
@@ -288,16 +310,81 @@ describe("ecoIA widget", () => {
   it("isolates a compact native interface in Shadow DOM", () => {
     const widget = createWidget();
     const shadow = widget.shadowRoot;
+    const styles = shadow?.querySelector("style")?.textContent ?? "";
     expect(shadow).not.toBeNull();
-    expect(shadow?.querySelector("style")?.textContent).toContain("--widget-width: 232px");
-    expect(shadow?.querySelector("style")?.textContent).toContain("prefers-reduced-motion: reduce");
+    expect(styles).toContain("--widget-width: 195px");
+    expect(styles).toContain("--collapsed-size: 36px");
+    expect(styles).toContain("--widget-max-height: 480px");
+    expect(styles).toContain("prefers-reduced-motion: reduce");
+    expect(styles).toContain("@keyframes measurement-ring");
+    expect(styles).not.toContain("infinite");
+    expect(styles).not.toMatch(/transition:[^;]*(?:top|left|right)/u);
+    expect(shadow?.querySelectorAll("[data-impact-step]")).toHaveLength(3);
+    expect(shadow?.querySelectorAll("svg[data-icon]").length).toBeGreaterThanOrEqual(5);
+    const brandMarks = shadow?.querySelectorAll<HTMLImageElement>("[data-brand-mark]");
+    expect(brandMarks).toHaveLength(2);
+    for (const mark of brandMarks ?? []) {
+      expect(mark.alt).toBe("");
+      expect(mark.getAttribute("src")).not.toMatch(/^https?:/u);
+      expect(mark.width).toBe(48);
+      expect(mark.height).toBe(48);
+    }
+    expect(shadow?.querySelector("[data-anchor-left]")).toBeNull();
+    expect(shadow?.querySelector("[data-anchor-right]")).toBeNull();
     expect(shadow?.querySelector("[role='region']")?.getAttribute("aria-label")).toBe(
       "Impact environnemental estimé de cette conversation IA",
     );
   });
 
+  it("masque les plages redondantes tant que l’impact est en attente", () => {
+    const widget = createWidget();
+    widget.update({
+      ...viewModel,
+      state: "active",
+      current: {
+        ...viewModel.current,
+        impact: null,
+      },
+    });
+
+    expect(widget.shadowRoot?.querySelector("[data-water]")?.textContent).toBe("En attente");
+    expect(widget.shadowRoot?.querySelector<HTMLElement>("[data-water-range]")?.hidden).toBe(true);
+    expect(widget.shadowRoot?.querySelector<HTMLElement>("[data-car-range]")?.hidden).toBe(true);
+    expect(widget.shadowRoot?.querySelector<HTMLElement>("[data-television-range]")?.hidden).toBe(
+      true,
+    );
+  });
+
+  it("confirms a newly completed measurement once, then becomes still", () => {
+    vi.useFakeTimers();
+    const widget = createWidget();
+    widget.update({ ...viewModel, state: "active" });
+    widget.update({ ...viewModel, state: "completed" });
+
+    expect(widget.hasAttribute("data-fresh-measurement")).toBe(true);
+    vi.advanceTimersByTime(900);
+    expect(widget.hasAttribute("data-fresh-measurement")).toBe(false);
+  });
+
+  it("uses a restrained translucent surface without a continuous visual effect", () => {
+    const widget = createWidget();
+    const styles = widget.shadowRoot?.querySelector("style")?.textContent ?? "";
+
+    expect(styles).toContain("--panel-surface:");
+    expect(styles).toContain("--data-surface:");
+    expect(styles).toContain("--panel-surface: oklch(97% 0.014 170 / 0.72)");
+    expect(styles).toContain("--data-surface: oklch(99% 0.008 170 / 0.88)");
+    expect(styles).toContain("backdrop-filter: blur(16px)");
+    expect(styles).toContain("-webkit-backdrop-filter: blur(16px)");
+    expect(styles).not.toContain("backdrop-filter: blur(24px)");
+    expect(styles).not.toContain("infinite");
+    expect(styles).not.toMatch(/(?:^|\s)zoom\s*:/u);
+  });
+
   it("writes untrusted model labels as text, never markup", () => {
     const widget = createWidget();
+    const staticIconCount = widget.shadowRoot?.querySelectorAll("svg[data-icon]").length;
+    const staticBrandMarkCount = widget.shadowRoot?.querySelectorAll("[data-brand-mark]").length;
     widget.update({
       ...viewModel,
       modelControl: {
@@ -315,8 +402,13 @@ describe("ecoIA widget", () => {
         ],
       },
     });
-    expect(widget.shadowRoot?.querySelector("img")).toBeNull();
-    expect(widget.shadowRoot?.querySelector("svg, script")).toBeNull();
+    expect(widget.shadowRoot?.querySelector("script")).toBeNull();
+    expect(widget.shadowRoot?.querySelectorAll("svg[data-icon]")).toHaveLength(
+      staticIconCount ?? 0,
+    );
+    expect(widget.shadowRoot?.querySelectorAll("[data-brand-mark]")).toHaveLength(
+      staticBrandMarkCount ?? 0,
+    );
     expect(widget.shadowRoot?.querySelector("[data-model]")?.textContent).toBe(
       '<img src=x onerror="alert(1)">',
     );
@@ -500,7 +592,7 @@ describe("ecoIA widget", () => {
     );
   });
 
-  it("collapses to a labeled 40px control and reopens", () => {
+  it("collapses to a labeled 36px control and reopens", () => {
     const widget = createWidget();
     widget.shadowRoot?.querySelector<HTMLButtonElement>("[data-collapse]")?.click();
     expect(widget.hasAttribute("collapsed")).toBe(true);
@@ -538,15 +630,77 @@ describe("ecoIA widget", () => {
     expect(document.activeElement).toBe(outsideButton);
   });
 
-  it("offers keyboard-operable left and right anchoring", () => {
+  it("removes contradictory left and right anchor controls", () => {
+    const widget = createWidget();
+    expect(widget.shadowRoot?.querySelector("[data-anchor-left]")).toBeNull();
+    expect(widget.shadowRoot?.querySelector("[data-anchor-right]")).toBeNull();
+  });
+
+  it("déplace librement le widget au clavier et mémorise chaque ajustement", () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(900);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(720);
     const onPreferencesChange = vi.fn();
     const widget = createWidget();
-    widget.configure({ onPreferencesChange });
-    widget.shadowRoot?.querySelector<HTMLButtonElement>("[data-anchor-left]")?.click();
-    expect(widget.getAttribute("data-side")).toBe("left");
-    widget.shadowRoot?.querySelector<HTMLButtonElement>("[data-anchor-right]")?.click();
-    expect(widget.getAttribute("data-side")).toBe("right");
-    expect(onPreferencesChange).toHaveBeenCalled();
+    widget.configure({
+      preferences: { theme: "light", collapsed: false, left: 500, top: 200 },
+      onPreferencesChange,
+    });
+    const handle = widget.shadowRoot?.querySelector<HTMLButtonElement>(".drag-handle");
+    if (!handle) throw new Error("MISSING_DRAG_HANDLE");
+
+    handle.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    handle.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "ArrowUp", shiftKey: true, bubbles: true }),
+    );
+
+    expect(widget.style.left).toBe("490px");
+    expect(widget.style.top).toBe("199px");
+    expect(onPreferencesChange).toHaveBeenLastCalledWith({
+      theme: "light",
+      collapsed: false,
+      left: 490,
+      top: 199,
+    });
+  });
+
+  it("conserve la position exacte au relâchement sans ancrage automatique", () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(900);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(720);
+    const onPreferencesChange = vi.fn();
+    const widget = createWidget();
+    widget.configure({
+      preferences: { theme: "system", collapsed: false, left: 500, top: 100 },
+      onPreferencesChange,
+    });
+    const handle = widget.shadowRoot?.querySelector<HTMLButtonElement>(".drag-handle");
+    if (!handle) throw new Error("MISSING_DRAG_HANDLE");
+    vi.spyOn(widget, "getBoundingClientRect").mockReturnValue({
+      x: 500,
+      y: 100,
+      top: 100,
+      right: 695,
+      bottom: 580,
+      left: 500,
+      width: 195,
+      height: 480,
+      toJSON: () => ({}),
+    });
+    const pointerEvent = (type: string, clientX: number, clientY: number) => {
+      const event = new MouseEvent(type, { bubbles: true, button: 0, clientX, clientY });
+      Object.defineProperty(event, "pointerId", { value: 11 });
+      return event;
+    };
+
+    handle.dispatchEvent(pointerEvent("pointerdown", 510, 110));
+    window.dispatchEvent(pointerEvent("pointermove", 360, 220));
+    window.dispatchEvent(pointerEvent("pointerup", 360, 220));
+
+    expect(widget.style.left).toBe("350px");
+    expect(widget.style.top).toBe("210px");
+    expect(widget.hasAttribute("data-side")).toBe(false);
+    expect(onPreferencesChange).toHaveBeenLastCalledWith(
+      expect.objectContaining({ left: 350, top: 210 }),
+    );
   });
 
   it("gives every interactive control an accessible name and visible focus styling", () => {

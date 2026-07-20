@@ -2,16 +2,40 @@ import type { BrowserContext, Page } from "@playwright/test";
 
 import { expect, test } from "./extension.fixture";
 
-function relativeLuminance(hexColor: string): number {
-  const channels = hexColor
-    .slice(1)
-    .match(/.{2}/gu)
-    ?.map((channel) => Number.parseInt(channel, 16) / 255);
-  if (channels?.length !== 3) throw new Error(`INVALID_COLOR:${hexColor}`);
-  const linear = channels.map((channel) =>
-    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
-  );
-  return 0.2126 * (linear.at(0) ?? 0) + 0.7152 * (linear.at(1) ?? 0) + 0.0722 * (linear.at(2) ?? 0);
+function relativeLuminance(color: string): number {
+  let linear: number[] | null = null;
+  if (/^#[0-9a-f]{6}$/iu.test(color)) {
+    const channels = color
+      .slice(1)
+      .match(/.{2}/gu)
+      ?.map((channel) => Number.parseInt(channel, 16) / 255);
+    linear =
+      channels?.map((channel) =>
+        channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+      ) ?? null;
+  } else {
+    const match = color.match(
+      /^oklch\(\s*([\d.]+)%\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*[\d.]+%?)?\s*\)$/iu,
+    );
+    if (match) {
+      const lightness = Number(match[1]) / 100;
+      const chroma = Number(match[2]);
+      const hue = (Number(match[3]) * Math.PI) / 180;
+      const a = chroma * Math.cos(hue);
+      const b = chroma * Math.sin(hue);
+      const l = (lightness + 0.3963377774 * a + 0.2158037573 * b) ** 3;
+      const m = (lightness - 0.1055613458 * a - 0.0638541728 * b) ** 3;
+      const s = (lightness - 0.0894841775 * a - 1.291485548 * b) ** 3;
+      linear = [
+        4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s,
+        -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s,
+        -0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s,
+      ].map((channel) => Math.max(0, Math.min(channel, 1)));
+    }
+  }
+  if (linear?.length !== 3) throw new Error(`INVALID_COLOR:${color}`);
+  const [red = 0, green = 0, blue = 0] = linear;
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
 function contrastRatio(foreground: string, background: string): number {
@@ -115,16 +139,22 @@ test("respecte le contraste des textes en thèmes clair et sombre", async ({
     await expect(widget).toHaveAttribute("data-theme", theme);
     const tokens = await widget.evaluate((element) => {
       const styles = getComputedStyle(element);
+      const impactStep = element.shadowRoot?.querySelector("[data-impact-step]");
+      element.setAttribute("data-fresh-measurement", "");
+      const reducedMotionAnimation = impactStep ? getComputedStyle(impactStep).animationName : null;
+      element.removeAttribute("data-fresh-measurement");
       return {
         text: styles.getPropertyValue("--text").trim(),
         muted: styles.getPropertyValue("--text-muted").trim(),
         surface: styles.getPropertyValue("--surface").trim(),
         transitionDuration: styles.transitionDuration,
+        reducedMotionAnimation,
       };
     });
     expect(contrastRatio(tokens.text, tokens.surface)).toBeGreaterThanOrEqual(4.5);
     expect(contrastRatio(tokens.muted, tokens.surface)).toBeGreaterThanOrEqual(4.5);
     expect(tokens.transitionDuration).toBe("0s");
+    expect(tokens.reducedMotionAnimation).toBe("none");
     if (theme === "light") {
       await widget.getByRole("button", { name: "Passer au thème sombre" }).click();
     }
@@ -167,7 +197,7 @@ test("reste entièrement dans un viewport de 320 px sans débordement horizontal
   expect(geometry?.top).toBeGreaterThanOrEqual(0);
   await expect
     .poll(async () => (await widget.boundingBox())?.y ?? Number.POSITIVE_INFINITY)
-    .toBeLessThanOrEqual(12);
+    .toBeLessThanOrEqual(96);
   await expect
     .poll(async () => {
       const bounds = await widget.boundingBox();

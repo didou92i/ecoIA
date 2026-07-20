@@ -14,7 +14,11 @@ import {
   formatWater,
   type FormattedEstimate,
 } from "./format-impact";
-import { WidgetController, type WidgetPreferences } from "./widget-controller";
+import {
+  type StoredWidgetPreferences,
+  WidgetController,
+  type WidgetPreferences,
+} from "./widget-controller";
 import { widgetStyles } from "./widget-styles";
 import { createWidgetTemplate, type WidgetElements } from "./widget-template";
 
@@ -61,7 +65,7 @@ export interface WidgetViewModel {
 }
 
 export interface WidgetConfiguration {
-  preferences?: Partial<WidgetPreferences>;
+  preferences?: StoredWidgetPreferences;
   onPreferencesChange?: (preferences: WidgetPreferences) => void;
   onModelSelectionChange?: (profileId: string | null) => void;
 }
@@ -76,6 +80,7 @@ const stateLabels: Record<WidgetMeasurementState, string> = {
   unsupported: "Plateforme non prise en charge",
 };
 const streamingRenderIntervalMs = 525;
+const measurementConfirmationDurationMs = 900;
 
 function summaryLabel(aggregate: NumericAggregate | null): string {
   if (!aggregate || aggregate.interactionCount === 0) return "Aucune donnée";
@@ -90,6 +95,7 @@ function renderEstimate(
 ): void {
   valueElement.textContent = estimate.value;
   rangeElement.textContent = estimate.range;
+  rangeElement.hidden = false;
 }
 
 function replaceTextList(list: HTMLUListElement, values: string[], dataAttribute?: string): void {
@@ -128,9 +134,11 @@ class EcoIaWidgetRuntime {
   private controller: WidgetController | null = null;
   private configuration: WidgetConfiguration = {};
   private previousState: WidgetMeasurementState = "initializing";
+  private hasRendered = false;
   private lastRenderAt: number | null = null;
   private pendingRender: number | null = null;
   private pendingViewModel: WidgetViewModel | null = null;
+  private measurementConfirmationTimer: number | null = null;
 
   constructor(private readonly host: HTMLElement) {
     const shadowRoot = host.attachShadow({ mode: "open" });
@@ -145,8 +153,13 @@ class EcoIaWidgetRuntime {
     this.controller?.disconnect();
     this.controller = null;
     if (this.pendingRender !== null) window.clearTimeout(this.pendingRender);
+    if (this.measurementConfirmationTimer !== null) {
+      window.clearTimeout(this.measurementConfirmationTimer);
+    }
     this.pendingRender = null;
     this.pendingViewModel = null;
+    this.measurementConfirmationTimer = null;
+    this.host.removeAttribute("data-fresh-measurement");
   }
 
   configure(configuration: WidgetConfiguration): void {
@@ -253,17 +266,22 @@ class EcoIaWidgetRuntime {
     } else {
       for (const element of [
         this.elements.water,
-        this.elements.waterRange,
         this.elements.car,
-        this.elements.carRange,
         this.elements.television,
-        this.elements.televisionRange,
         this.elements.energy,
-        this.elements.energyRange,
         this.elements.carbon,
-        this.elements.carbonRange,
       ]) {
         element.textContent = "En attente";
+      }
+      for (const element of [
+        this.elements.waterRange,
+        this.elements.carRange,
+        this.elements.televisionRange,
+        this.elements.energyRange,
+        this.elements.carbonRange,
+      ]) {
+        element.textContent = "";
+        element.hidden = true;
       }
     }
 
@@ -316,12 +334,26 @@ class EcoIaWidgetRuntime {
       "data-diagnostic-row",
     );
 
-    if (viewModel.state === "completed" && this.previousState !== "completed") {
+    const isNewCompletion = viewModel.state === "completed" && this.previousState !== "completed";
+    if (isNewCompletion) {
       this.elements.live.textContent = `Réponse terminée. ${this.elements.water.textContent}, ${this.elements.car.textContent}, ${this.elements.television.textContent}.`;
     } else if (viewModel.state !== "completed") {
       this.elements.live.textContent = "";
     }
+    if (this.hasRendered && isNewCompletion) this.confirmNewMeasurement();
+    this.hasRendered = true;
     this.previousState = viewModel.state;
+  }
+
+  private confirmNewMeasurement(): void {
+    if (this.measurementConfirmationTimer !== null) {
+      window.clearTimeout(this.measurementConfirmationTimer);
+    }
+    this.host.setAttribute("data-fresh-measurement", "");
+    this.measurementConfirmationTimer = window.setTimeout(() => {
+      this.host.removeAttribute("data-fresh-measurement");
+      this.measurementConfirmationTimer = null;
+    }, measurementConfirmationDurationMs);
   }
 }
 

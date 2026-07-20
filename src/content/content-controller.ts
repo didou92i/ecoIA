@@ -13,7 +13,7 @@ import { isDayAggregate, isSessionAggregate } from "../storage/aggregate-store";
 import type { NumericAggregate } from "../storage/storage-types";
 import { createInputEnvelope, type ContextTokenEstimate } from "../token/context-envelope";
 import { estimateVisibleTokens, type TokenizerFamily } from "../token/token-estimator";
-import type { WidgetPreferences } from "../widget/widget-controller";
+import type { StoredWidgetPreferences } from "../widget/widget-controller";
 import type { WidgetConfiguration, WidgetViewModel } from "../widget/eco-widget";
 import { conversationChanged, createEphemeralSessionId } from "./page-lifecycle";
 
@@ -162,12 +162,13 @@ function parseAggregateResponse(value: unknown): AggregateResponse | null {
   return null;
 }
 
-function isStoredPreferences(value: unknown): value is Partial<WidgetPreferences> {
+function isStoredPreferences(value: unknown): value is StoredWidgetPreferences {
   if (!isRecord(value)) return false;
   return (
     (value.theme === undefined || ["light", "dark", "system"].includes(value.theme as string)) &&
     (value.side === undefined || value.side === "left" || value.side === "right") &&
     (value.collapsed === undefined || typeof value.collapsed === "boolean") &&
+    (value.left === undefined || (typeof value.left === "number" && Number.isFinite(value.left))) &&
     (value.top === undefined || (typeof value.top === "number" && Number.isFinite(value.top)))
   );
 }

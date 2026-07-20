@@ -58,6 +58,14 @@ describe("built browser artifacts", () => {
     expect(archive.toString("utf8")).not.toContain("127.0.0.1");
   });
 
+  it.each(["chromium", "firefox"])("compresses the %s release archive", async (target) => {
+    const archive = await readFile(
+      path.join(projectRoot, "dist", "packages", `ecoia-${target}.zip`),
+    );
+    expect(archive.readUInt32LE(0)).toBe(0x04034b50);
+    expect(archive.readUInt16LE(8)).toBe(8);
+  });
+
   it.each(["chromium", "firefox"])(
     "keeps platform-specific model detection in the %s runtime",
     async (target) => {

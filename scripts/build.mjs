@@ -126,6 +126,7 @@ for (const target of targets) {
       entryPoints: availableEntries,
       format: "iife",
       legalComments: "none",
+      loader: { ".webp": "dataurl" },
       minify: true,
       outdir: outputDirectory,
       platform: "browser",

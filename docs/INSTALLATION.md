@@ -45,7 +45,9 @@ l’extension décompressée**.
 1. Ouvrez ChatGPT, Claude, Gemini, Mistral Le Chat ou Perplexity.
 2. Actualisez l’onglet si la plateforme était déjà ouverte.
 3. Posez une nouvelle question textuelle.
-4. Le petit panneau ecoIA apparaît. Vous pouvez le déplacer, le replier et changer son thème.
+4. Le petit panneau ecoIA apparaît. Faites glisser son logo et son nom pour le placer librement.
+   La position est conservée après actualisation. Les flèches le déplacent de 10 px lorsque la zone
+   du logo possède le focus ; `Maj` avec une flèche permet un ajustement fin de 1 px.
 
 ## Mozilla Firefox
 
