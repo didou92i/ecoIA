@@ -90,6 +90,16 @@ export async function activateFixtureInteraction(page: Page): Promise<void> {
   await expect(page.locator("eco-ia-widget [data-session]")).toContainText("1 interaction");
 }
 
+export async function grantMeasurementConsent(context: BrowserContext): Promise<void> {
+  const serviceWorker =
+    context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.local.set({
+      "ecoia.measurement-consent.v1": { version: 1, noticeVersion: 1, granted: true },
+    });
+  });
+}
+
 export const test = base.extend<ExtensionFixtures, WorkerFixtures>({
   fixtureOrigin: [
     async ({ browserName: _browserName }, use) => {
@@ -124,6 +134,7 @@ export const test = base.extend<ExtensionFixtures, WorkerFixtures>({
     expect(browserErrors, "Erreurs navigateur non masquées").toEqual([]);
   },
   extensionPage: async ({ extensionContext, fixtureOrigin }, use) => {
+    await grantMeasurementConsent(extensionContext);
     const page = extensionContext.pages()[0] ?? (await extensionContext.newPage());
     await page.goto(fixtureOrigin);
     await expect(page.locator("eco-ia-widget")).toBeVisible();

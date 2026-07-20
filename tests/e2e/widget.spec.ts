@@ -1,4 +1,39 @@
-import { expect, test } from "./extension.fixture";
+import { activateFixtureInteraction, expect, test } from "./extension.fixture";
+
+test("demande le consentement avant toute mesure et permet ensuite de le révoquer", async ({
+  extensionContext,
+  fixtureOrigin,
+}) => {
+  const page = extensionContext.pages()[0] ?? (await extensionContext.newPage());
+  await page.goto(fixtureOrigin);
+  const widget = page.locator("eco-ia-widget");
+
+  await expect(widget.locator("[data-consent]")).toBeVisible();
+  await expect(widget.locator("[data-measurement-body]")).toBeHidden();
+  await expect(widget.locator("[data-consent]")).toContainText(
+    "Aucun texte n’est stocké ni transmis.",
+  );
+
+  await widget.locator("[data-consent-accept]").click();
+  await expect(widget.locator("[data-consent]")).toBeHidden();
+  await expect(widget.locator("[data-measurement-body]")).toBeVisible();
+  await activateFixtureInteraction(page);
+
+  await widget.getByText("Méthode et détails", { exact: true }).click();
+  await widget.locator("[data-consent-revoke]").click();
+  await expect(widget.locator("[data-consent]")).toBeVisible();
+  await expect(widget.locator("[data-measurement-body]")).toBeHidden();
+
+  const serviceWorker =
+    extensionContext.serviceWorkers()[0] ?? (await extensionContext.waitForEvent("serviceworker"));
+  await expect
+    .poll(() =>
+      serviceWorker.evaluate(async () => chrome.storage.local.get("ecoia.measurement-consent.v1")),
+    )
+    .toEqual({
+      "ecoia.measurement-consent.v1": { version: 1, noticeVersion: 1, granted: false },
+    });
+});
 
 test("injecte le widget et présente une estimation compréhensible", async ({ extensionPage }) => {
   const widget = extensionPage.locator("eco-ia-widget");

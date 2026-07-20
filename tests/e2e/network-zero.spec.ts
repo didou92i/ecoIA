@@ -1,7 +1,12 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 
-import { activateFixtureInteraction, expect, test } from "./extension.fixture";
+import {
+  activateFixtureInteraction,
+  expect,
+  grantMeasurementConsent,
+  test,
+} from "./extension.fixture";
 
 test("rejette les routes locales hors allowlist", async ({ fixtureOrigin }) => {
   const response = await fetch(`${fixtureOrigin}/telemetry`);
@@ -12,6 +17,7 @@ test("ne contacte aucun rÃ©seau distant et ne persiste ni texte ni choix de modÃ
   extensionContext,
   fixtureOrigin,
 }) => {
+  await grantMeasurementConsent(extensionContext);
   const serviceWorker =
     extensionContext.serviceWorkers()[0] ?? (await extensionContext.waitForEvent("serviceworker"));
   await serviceWorker.evaluate(() => {
