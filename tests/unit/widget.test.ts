@@ -139,10 +139,11 @@ const viewModel: WidgetViewModel = {
   day: null,
 };
 
-function createWidget() {
+function createWidget(consentGranted = true) {
   registerEcoWidget();
   const widget = document.createElement("eco-ia-widget") as EcoIaWidgetHost;
   document.body.append(widget);
+  widget.configure({ consentGranted });
   return widget;
 }
 
@@ -334,6 +335,49 @@ describe("ecoIA widget", () => {
     expect(shadow?.querySelector("[role='region']")?.getAttribute("aria-label")).toBe(
       "Impact environnemental estimé de cette conversation IA",
     );
+  });
+
+  it("demande un consentement explicite avant d’afficher la mesure", () => {
+    const onConsentChange = vi.fn();
+    const widget = createWidget(false);
+    widget.configure({ consentGranted: false, onConsentChange });
+    const shadow = widget.shadowRoot;
+    const consent = shadow?.querySelector<HTMLElement>("[data-consent]");
+    const measurementBody = shadow?.querySelector<HTMLElement>("[data-measurement-body]");
+    const privacyLink = shadow?.querySelector<HTMLAnchorElement>("[data-privacy-link]");
+
+    expect(consent?.hidden).toBe(false);
+    expect(measurementBody?.hidden).toBe(true);
+    expect(consent?.textContent).toContain(
+      "ecoIA estime localement les tokens à partir du texte visible.",
+    );
+    expect(consent?.textContent).toContain("Aucun texte n’est stocké ni transmis.");
+    expect(privacyLink?.href).toBe("https://github.com/didou92i/ecoIA/blob/main/PRIVACY.md");
+    expect(privacyLink?.target).toBe("_blank");
+    expect(privacyLink?.rel).toBe("noopener noreferrer");
+
+    shadow?.querySelector<HTMLButtonElement>("[data-consent-accept]")?.click();
+    expect(onConsentChange).toHaveBeenCalledWith(true);
+  });
+
+  it("permet de différer puis de révoquer le consentement sans perdre l’accès au widget", () => {
+    const onConsentChange = vi.fn();
+    const widget = createWidget(false);
+    widget.configure({ consentGranted: false, onConsentChange });
+    const shadow = widget.shadowRoot;
+
+    shadow?.querySelector<HTMLButtonElement>("[data-consent-decline]")?.click();
+    expect(onConsentChange).toHaveBeenLastCalledWith(false);
+    expect(widget.hasAttribute("collapsed")).toBe(true);
+
+    shadow?.querySelector<HTMLButtonElement>("[data-expand]")?.click();
+    widget.configure({ consentGranted: true });
+    expect(shadow?.querySelector<HTMLElement>("[data-consent]")?.hidden).toBe(true);
+    expect(shadow?.querySelector<HTMLElement>("[data-measurement-body]")?.hidden).toBe(false);
+    expect(shadow?.querySelector<HTMLButtonElement>("[data-consent-revoke]")?.hidden).toBe(false);
+
+    shadow?.querySelector<HTMLButtonElement>("[data-consent-revoke]")?.click();
+    expect(onConsentChange).toHaveBeenLastCalledWith(false);
   });
 
   it("masque les plages redondantes tant que l’impact est en attente", () => {

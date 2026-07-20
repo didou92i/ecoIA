@@ -66,8 +66,10 @@ export interface WidgetViewModel {
 
 export interface WidgetConfiguration {
   preferences?: StoredWidgetPreferences;
+  consentGranted?: boolean;
   onPreferencesChange?: (preferences: WidgetPreferences) => void;
   onModelSelectionChange?: (profileId: string | null) => void;
+  onConsentChange?: (granted: boolean) => void;
 }
 
 const stateLabels: Record<WidgetMeasurementState, string> = {

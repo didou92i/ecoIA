@@ -147,6 +147,50 @@ button:focus-visible, summary:focus-visible, select:focus-visible, a:focus-visib
 }
 .icon-button:hover { border-color: var(--border); background: var(--surface-muted); color: var(--text); }
 .icon-button:active { transform: scale(.94); }
+.consent {
+  display: grid;
+  gap: 8px;
+  padding: 11px 10px 10px;
+}
+.consent[hidden], .body[hidden], .consent-revoke[hidden] { display: none; }
+.consent-title {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.25;
+}
+.consent-text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+.privacy-link {
+  color: var(--accent);
+  font-size: 9px;
+  font-weight: 680;
+  text-underline-offset: 2px;
+}
+.consent-actions { display: grid; gap: 5px; }
+.consent-primary, .consent-secondary, .consent-revoke {
+  min-height: 30px;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  cursor: pointer;
+  font-weight: 700;
+}
+.consent-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--surface-raised);
+}
+.consent-secondary, .consent-revoke {
+  background: var(--data-surface);
+  color: var(--text);
+}
+.consent-primary:hover { filter: brightness(1.06); }
+.consent-secondary:hover, .consent-revoke:hover { background: var(--surface-muted); }
 .body { padding: 7px 8px 8px; }
 .status-row { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
 .status-dot {
@@ -315,6 +359,12 @@ summary {
   padding-top: 7px;
   border-top: 1px solid var(--border);
 }
+.privacy-control {
+  margin-top: 6px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+}
+.consent-revoke { width: 100%; margin-top: 3px; color: var(--text-muted); }
 .detail-heading { margin: 0 0 3px; font-size: 10px; }
 .compact-list { display: grid; gap: 4px; margin: 0; padding-left: 17px; }
 .compact-list li { min-width: 0; }
@@ -343,7 +393,7 @@ summary {
 :host([collapsed]) .collapsed-button { display: grid; }
 
 @media (prefers-reduced-motion: no-preference) {
-  .icon-button, .warning-action, .panel, .collapsed-button {
+  .icon-button, .warning-action, .consent-primary, .consent-secondary, .consent-revoke, .panel, .collapsed-button {
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, opacity 160ms ease, transform 160ms ease;
   }
   :host([data-dragging]) .panel { transform: scale(.992); }
@@ -366,7 +416,7 @@ summary {
   100% { opacity: 1; transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  :host, .panel, .collapsed-button, .icon-button, .warning-action {
+  :host, .panel, .collapsed-button, .icon-button, .warning-action, .consent-primary, .consent-secondary, .consent-revoke {
     scroll-behavior: auto;
     animation: none !important;
     transition: none !important;

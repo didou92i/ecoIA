@@ -18,8 +18,10 @@ export interface StoredWidgetPreferences extends Partial<WidgetPreferences> {
 
 interface WidgetControllerOptions {
   preferences?: StoredWidgetPreferences;
+  consentGranted?: boolean;
   onPreferencesChange?: (preferences: WidgetPreferences) => void;
   onModelSelectionChange?: (profileId: string | null) => void;
+  onConsentChange?: (granted: boolean) => void;
 }
 
 const defaultPreferences: WidgetPreferences = {
@@ -70,6 +72,8 @@ export class WidgetController {
   private preferences: WidgetPreferences = { ...defaultPreferences };
   private onPreferencesChange: (preferences: WidgetPreferences) => void = () => undefined;
   private onModelSelectionChange: (profileId: string | null) => void = () => undefined;
+  private onConsentChange: (granted: boolean) => void = () => undefined;
+  private consentGranted = false;
   private allowedProfileIds = new Set<string>();
   private lastValidSelectedProfileId: string | null = null;
   private modelOptionsSignature = "";
@@ -98,6 +102,10 @@ export class WidgetController {
     if (options.onModelSelectionChange) {
       this.onModelSelectionChange = options.onModelSelectionChange;
     }
+    if (options.onConsentChange) this.onConsentChange = options.onConsentChange;
+    if (typeof options.consentGranted === "boolean") {
+      this.consentGranted = options.consentGranted;
+    }
     if (options.preferences) {
       const preferences = options.preferences;
       if (preferences.theme && ["light", "dark", "system"].includes(preferences.theme)) {
@@ -116,6 +124,7 @@ export class WidgetController {
       }
     }
     this.applyPreferences(false);
+    this.renderConsent();
   }
 
   disconnect(): void {
@@ -127,6 +136,12 @@ export class WidgetController {
   toggleCollapsed(): void {
     this.preferences.collapsed = !this.preferences.collapsed;
     this.applyPreferences();
+    this.scheduleReclamp();
+  }
+
+  setConsentGranted(granted: boolean): void {
+    this.consentGranted = granted;
+    this.renderConsent();
     this.scheduleReclamp();
   }
 
@@ -173,6 +188,19 @@ export class WidgetController {
   }
 
   private bindEvents(): void {
+    this.listen(this.elements.consentAcceptButton, "click", () => {
+      this.onConsentChange(true);
+    });
+    this.listen(this.elements.consentDeclineButton, "click", () => {
+      this.onConsentChange(false);
+      this.preferences.collapsed = true;
+      this.applyPreferences();
+      this.scheduleReclamp();
+      this.elements.expandButton.focus();
+    });
+    this.listen(this.elements.consentRevokeButton, "click", () => {
+      this.onConsentChange(false);
+    });
     this.listen(this.elements.themeButton, "click", () => {
       this.preferences.theme = this.resolveTheme() === "dark" ? "light" : "dark";
       this.applyPreferences();
@@ -231,6 +259,13 @@ export class WidgetController {
   private resolveTheme(): "light" | "dark" {
     if (this.preferences.theme !== "system") return this.preferences.theme;
     return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+
+  private renderConsent(): void {
+    this.host.toggleAttribute("data-consent-required", !this.consentGranted);
+    this.elements.consent.hidden = this.consentGranted;
+    this.elements.measurementBody.hidden = !this.consentGranted;
+    this.elements.consentRevokeButton.hidden = !this.consentGranted;
   }
 
   private startDrag(event: PointerEvent): void {
