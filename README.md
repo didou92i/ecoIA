@@ -100,6 +100,9 @@ d’être invalidé.
 ## Utiliser ecoIA
 
 Ouvrez une plateforme prise en charge puis une conversation textuelle. Le panneau apparaît à droite.
+Au premier lancement, il explique que le texte visible est traité temporairement et localement. La
+mesure ne démarre qu’après un clic sur **Activer ecoIA** ; **Pas maintenant** la laisse inactive. Le
+consentement peut ensuite être révoqué avec **Désactiver la mesure** dans « Méthode et détails ».
 Faites glisser la zone du logo TerritorIA et du nom « ecoIA » pour le placer où vous le souhaitez.
 Lorsque cette zone possède le focus, les flèches du clavier le déplacent de 10 px et `Maj` avec une
 flèche permet un ajustement fin de 1 px. Vous pouvez aussi le replier ou changer de thème. Un clic sur
@@ -160,6 +163,7 @@ prudente afin de ne pas compter un historique chargé tardivement.
 
 ## Confidentialité
 
+- Avant le consentement, ecoIA ne recherche pas et ne lit pas la conversation.
 - Le texte visible est lu uniquement dans la page et immédiatement transformé en nombres.
 - Aucun prompt, aucune réponse, URL complète ou identité de conversation n’est envoyé au service
   worker ni stocké.

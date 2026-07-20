@@ -4,9 +4,10 @@ ecoIA est conçu pour fonctionner localement et avec minimisation des données.
 
 ## Données traitées
 
-Le script de contenu lit le dernier prompt et la dernière réponse textuelle visibles afin d’estimer
-une fourchette de tokens. Ces chaînes existent seulement en mémoire dans le contexte de la page. Elles
-sont remplacées par des chaînes vides immédiatement après conversion.
+Après un consentement explicite, le script de contenu lit le dernier prompt et la dernière réponse
+textuelle visibles afin d’estimer une fourchette de tokens. Ces chaînes existent seulement en mémoire
+dans le contexte de la page. Elles sont remplacées par des chaînes vides immédiatement après
+conversion.
 
 Lorsque des tours précédents sont visibles, leur contexte est converti une seule fois en estimation
 numérique pour l’interaction correspondante, puis la chaîne est vidée. ecoIA ne sait pas si le
@@ -41,10 +42,24 @@ validés et contiennent uniquement des nombres, des identifiants éphémères al
 issues de listes fermées. Les empreintes éphémères ne quittent jamais le script de contenu et
 disparaissent avec la page.
 
+## Consentement et désactivation
+
+Avant l’acceptation, ecoIA affiche uniquement sa notice locale : il ne recherche pas la racine de
+conversation, ne lit aucun prompt ou réponse et ne s’abonne à aucune mutation de la conversation.
+« Activer ecoIA » enregistre une notice versionnée puis démarre la mesure avec le tour déjà visible
+comme baseline non agrégée. « Pas maintenant » maintient la mesure inactive. La commande
+« Désactiver la mesure » coupe immédiatement les observateurs et les nouvelles estimations.
+
+`ecoia.measurement-consent.v1` contient exactement trois champs : la version du format, la version de
+la notice et un booléen d’accord. Une valeur malformée, étendue ou issue d’une autre version est
+traitée comme une absence de consentement. Aucun texte, URL, titre ou identifiant n’est associé à ce
+choix.
+
 ## Stockage local
 
 - `storage.local` conserve les préférences visuelles, l’agrégat numérique du jour courant et, en cas
-  d’écriture interrompue, le journal de reprise décrit ci-dessous ;
+  d’écriture interrompue, le journal de reprise décrit ci-dessous, ainsi que le consentement
+  versionné ;
 - `storage.session` conserve les agrégats numériques des sessions d’onglet et leurs contributions
   récentes ;
 - `ecoia.sessions.v1` est un registre de 32 sessions au maximum. Il contient seulement un identifiant

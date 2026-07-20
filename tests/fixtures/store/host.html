@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <title>Démonstration locale ecoIA</title>
+    <style>
+      :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-height: 100vh; background: #f4f7f5; color: #17302b; }
+      header { height: 68px; display: flex; align-items: center; justify-content: space-between; padding: 0 34px; border-bottom: 1px solid #d8e3df; background: rgb(255 255 255 / 86%); }
+      .brand { font-size: 19px; font-weight: 780; }
+      .badge { padding: 7px 12px; border-radius: 999px; background: #e1f4ec; color: #176b5b; font-size: 13px; font-weight: 700; }
+      .layout { display: grid; grid-template-columns: 220px minmax(0, 760px); gap: 36px; width: 1080px; margin: 0 auto; padding: 32px 0 80px; }
+      aside { color: #60746f; font-size: 14px; }
+      aside h2 { margin: 0 0 16px; color: #17302b; font-size: 15px; }
+      aside div { margin: 8px 0; padding: 9px 11px; border-radius: 10px; }
+      aside .active { background: #dff2eb; color: #155c50; font-weight: 700; }
+      main { min-height: 650px; padding: 28px 34px; border: 1px solid #dae4e0; border-radius: 22px; background: rgb(255 255 255 / 92%); box-shadow: 0 18px 60px rgb(20 52 45 / 8%); }
+      .conversation-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+      h1 { margin: 0; font-size: 22px; }
+      [data-fixture-model] { padding: 7px 11px; border: 1px solid #cfdcd7; border-radius: 9px; background: #fff; color: #3e5b55; }
+      article { max-width: 590px; margin: 16px 0; padding: 15px 17px; border-radius: 16px; line-height: 1.55; }
+      [data-message-author-role="user"] { margin-left: auto; background: #dff2eb; }
+      [data-message-author-role="assistant"] { background: #f0f3f2; }
+      article p { margin: 0; }
+      footer { margin-top: 28px; color: #758782; font-size: 12px; text-align: center; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="brand">Conversation de démonstration</div>
+      <div class="badge">Données entièrement fictives</div>
+    </header>
+    <div class="layout">
+      <aside id="outside-conversation">
+        <h2>Historique local</h2>
+        <div class="active">Découverte d’ecoIA</div>
+        <div>Comprendre les fourchettes</div>
+        <div>Lire les sources</div>
+      </aside>
+      <main data-conversation-id="store-demo-conversation">
+        <div class="conversation-heading">
+          <h1>Un usage de l’IA plus conscient</h1>
+          <button type="button" aria-haspopup="menu" data-fixture-model>Instantanée</button>
+        </div>
+        <article data-message-author-role="user">
+          <p>Peux-tu expliquer simplement pourquoi une estimation environnementale comporte une fourchette ?</p>
+        </article>
+        <article data-message-author-role="assistant">
+          <p>Une fourchette montre l’incertitude liée au modèle, au matériel, à la région et au contexte réellement traité.</p>
+        </article>
+        <footer>Cette page locale sert uniquement à produire les visuels officiels d’ecoIA.</footer>
+      </main>
+    </div>
+  </body>
+</html>
