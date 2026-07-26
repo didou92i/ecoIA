@@ -38,7 +38,7 @@
     "verify": "npm run format:check && npm run lint && npm run typecheck && npm test && npm run impact-coefficients && npm run source-freshness && npm run build && npm run size"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.4",
+    "@biomejs/biome": "2.5.5",
     "@playwright/test": "1.61.1",
     "@types/chrome": "0.2.2",
     "@types/node": "22.20.1",
